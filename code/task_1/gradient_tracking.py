@@ -7,7 +7,7 @@ seed = 42
 np.random.seed(seed)
 
 
-max_iter = 2000
+max_iter = 500
 
 def quadratic_cost_fn(zz, QQ, rr):
     cost = 0.5 * zz.T @ QQ @ zz + rr.T @ zz
@@ -17,20 +17,10 @@ def quadratic_cost_fn(zz, QQ, rr):
 def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
     cost = np.zeros((max_iter))
 
-    print(zz[0].T)
-    print(zz[0].T.shape)
-    print("-"*35)
-    print(weighted_adj[0].T)
-    print(weighted_adj[0].T.shape)
-    print("-"*35)
-    print(zz[0].T @ weighted_adj[0].T)
-    print((zz[0].T @ weighted_adj[0].T).shape)
-
-
     for k in range(max_iter - 1):
         for i in range(NN):
             zz[k+1, i] = zz[k].T @ weighted_adj[i].T - alpha * ss[k, i]
-            # zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
+            # TODO: maybe reversed? zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
 
             consensus = ss[k].T @ weighted_adj[i].T
             
@@ -185,7 +175,7 @@ if __name__ == "__main__":
 
     cost_functions = []
     for i in range(NN):
-        cost_functions.append(lambda zz : quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
+        cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
 
     cost, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
 
