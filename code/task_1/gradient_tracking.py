@@ -6,7 +6,6 @@ import math
 seed = 42
 np.random.seed(seed)
 
-
 max_iter = 500
 
 def quadratic_cost_fn(zz, QQ, rr):
@@ -34,27 +33,50 @@ def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
 
     return cost, zz, ss
     
+def metropolis_hastings_weights(graph):
+    N = graph.number_of_nodes()
+    A = np.zeros(shape=(N, N), dtype='float64')
+    for i in range(A.shape[0]):
+        N_i = list(graph.neighbors(i))
+        d_i = len(N_i)
+        for j in range(A.shape[0]):
+            N_j = list(graph.neighbors(j))
+            d_j = len(N_j)
+            if i == j: 
+                sum = 0
+                for h in N_i:
+                    sum += A[i, h]
+                A[i,j] = 1 - sum
+            elif graph.has_edge(i,j):
+                A[i,j] = 1 / (1 + max(d_i, d_j))
 
-def create_graph_iteratively(NN, p_er):
-    ONES = np.ones((NN, NN))
-    while 1:
-        G = nx.erdos_renyi_graph(NN, p_er, seed)
-        Adj = nx.adjacency_matrix(G).toarray()
-        test = np.linalg.matrix_power(Adj + np.eye(NN), NN)
+    # Normalize
+    max_iterations = 1000
+    tolerance = 10e-9
+    for _ in range(max_iterations):
+        A = A / np.sum(np.abs(A), axis=1, keepdims=True)
+        A = A / np.sum(np.abs(A), axis=0, keepdims=True)
+        A = np.abs(A)
 
-        # if is full, then in strongly connected
-        if np.all(test > 0):
+        # Check for convergence
+        if np.all(np.sum(A, axis=1) - 1 < tolerance) and np.all(np.sum(A, axis=0) - 1 < tolerance):
             break
 
-    A = Adj + np.eye(NN)
+    return A
 
-    while any(abs(np.sum(A, axis=1) - 1) > 1e-10):
-        A = A / (A @ ONES)
-        A = A / (ONES.T @ A) # removing this part, I only get row-stochastcisty
-        # they converge, but not at the minimum of the sum of the cost functions
-        # but to a weighted avg of the sum
+def create_graph_erdos_renyi_metropolis_hastings_weights(NN, p_er):
+    global seed
 
-        A = np.abs(A)
+    ONES = np.ones((NN, NN))
+    while True:
+        G = nx.erdos_renyi_graph(NN, p_er, seed)
+        Adj = nx.adjacency_matrix(G).toarray()
+        is_strongly_connected = np.all(np.linalg.matrix_power(Adj + np.eye(NN), NN) > 0)
+        
+        if is_strongly_connected:
+            break
+
+    A = metropolis_hastings_weights(G)
 
     return G, A
 
@@ -170,7 +192,7 @@ if __name__ == "__main__":
         s[0, i] = grad
 
 
-    graph, weighted_adj = create_graph_birkhoff_von_neumann(NN, num_vertices=5)
+    graph, weighted_adj = create_graph_erdos_renyi_metropolis_hastings_weights(NN, p_ER)
     show_graph_and_adj_matrix(graph, weighted_adj)
 
     cost_functions = []
