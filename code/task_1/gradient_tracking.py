@@ -3,10 +3,20 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import math
 
-seed = 42
+from enum import Enum
+
+seed = 48
 np.random.seed(seed)
 
 max_iter = 500
+simulation = False
+
+class GraphType(Enum):
+    ERDOS_RENYI = 1
+    CYCLE = 2
+    PATH = 3
+    STAR = 4
+    COMPLETE = 5
 
 def quadratic_cost_fn(zz, QQ, rr):
     cost = 0.5 * zz.T @ QQ @ zz + rr.T @ zz
@@ -15,6 +25,7 @@ def quadratic_cost_fn(zz, QQ, rr):
 
 def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
     cost = np.zeros((max_iter))
+    grad = np.zeros((max_iter, d))
 
     for k in range(max_iter - 1):
         for i in range(NN):
@@ -30,8 +41,9 @@ def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
             ss[k+1, i] = consensus + local_innovation
 
             cost[k] += cost_k_i
+            grad[k] += grad_k_i
 
-    return cost, zz, ss
+    return cost, grad, zz, ss
     
 def metropolis_hastings_weights(graph):
     N = graph.number_of_nodes()
@@ -64,17 +76,32 @@ def metropolis_hastings_weights(graph):
 
     return A
 
-def create_graph_erdos_renyi_metropolis_hastings_weights(NN, p_er):
+def create_graph_with_metropolis_hastings_weights(NN, graph_type, args={}):
     global seed
 
     ONES = np.ones((NN, NN))
-    while True:
-        G = nx.erdos_renyi_graph(NN, p_er, seed)
-        Adj = nx.adjacency_matrix(G).toarray()
-        is_strongly_connected = np.all(np.linalg.matrix_power(Adj + np.eye(NN), NN) > 0)
-        
-        if is_strongly_connected:
-            break
+    
+    if graph_type == GraphType.ERDOS_RENYI:
+        p_er = args['edge_probability']
+        while True:
+            G = nx.erdos_renyi_graph(NN, p_er, seed)
+            Adj = nx.adjacency_matrix(G).toarray()
+            is_strongly_connected = np.all(np.linalg.matrix_power(Adj + np.eye(NN), NN) > 0)
+            
+            if is_strongly_connected:
+                break
+
+    elif graph_type == GraphType.CYCLE:
+        G = nx.cycle_graph(NN)
+
+    elif graph_type == GraphType.PATH:
+        G = nx.path_graph(NN)
+    
+    elif graph_type == GraphType.STAR:
+        G = nx.star_graph(NN - 1)
+
+    elif graph_type == GraphType.COMPLETE:
+        G = nx.complete_graph(NN)
 
     A = metropolis_hastings_weights(G)
 
@@ -134,6 +161,7 @@ def create_graph_birkhoff_von_neumann(NN, num_vertices):
     return graph, doubly_stochastic_matrix
 
 def show_graph_and_adj_matrix(graph, adj_matrix=None):
+
     fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
     nx.draw(graph, with_labels=True, ax=axs[0])
 
@@ -142,13 +170,30 @@ def show_graph_and_adj_matrix(graph, adj_matrix=None):
     
     cax = axs[1].matshow(adj_matrix, cmap='plasma')# , vmin=0, vmax=1)
     fig.colorbar(cax)
+
     plt.show(block=False)
 
+def show_simulations_plots(cost, cost_opt, grad):
+
+    fig, axs = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
+
+    ax = axs[0]
+    # optimal cost error - one line! we are minimizing the sum not each l_i
+    ax.set_title("Cost")
+    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
+    ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
+
+    ax = axs[1]
+    ax.set_title("Norm of the total gradient - log scale")
+    ax.semilogy(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
+
+    plt.show(block=False)
 
 if __name__ == "__main__":
+    # TODO: parametri a linea di comando
     NN = 10     # number of agents
     d = 2       # dimension of the state
-    p_ER = 0.65
+    p_ER = 0.65 
 
     QQ_list = []
     rr_list = []
@@ -185,28 +230,34 @@ if __name__ == "__main__":
     # init z
     z_init = np.random.normal(size=(NN, d))
     z[0] = z_init
+    # print(f"z_init: {z_init}")
 
     # init s
     for i in range(NN):
         _, grad = quadratic_cost_fn(z[0, i], QQ_list[i], rr_list[i])
         s[0, i] = grad
 
-
-    graph, weighted_adj = create_graph_erdos_renyi_metropolis_hastings_weights(NN, p_ER)
+    # general case of a graph with birkhoff-von-neumann weights
+    graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.COMPLETE)
     show_graph_and_adj_matrix(graph, weighted_adj)
 
     cost_functions = []
     for i in range(NN):
         cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
 
-    cost, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
+    cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
+    # print(f"l[0:10]: {cost[0:10]}")
+    # print(f"cost[230:280] - cost_opt:{cost[230:280] - cost_opt}")
 
     # graph config: [1]
-    fig, axes = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
+    fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
+
+    fig.suptitle("Plot - Linear scale")
+    fig.canvas.manager.set_window_title("Plot - Linear scale")
 
     ax = axes[0]
     # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("Cost error")
+    ax.set_title("Cost")
     ax.plot(np.arange(max_iter - 1), cost[:-1])
     ax.plot(np.arange(max_iter - 1), cost_opt * np.ones((max_iter - 1)), "r--")
 
@@ -216,24 +267,69 @@ if __name__ == "__main__":
     for i in range(NN):
         # distance for each agent from the average of that iteration
         ax.plot(np.arange(max_iter), z[:, i] - z_avg)
+
+    ax = axes[2]
+    ax.set_title("Cost error")
+    # optimal cost error - one line! we are minimizing the sum not each l_i
+    ax.plot(np.arange(max_iter - 1), cost[:-1] - cost_opt)
+
+    ax  = axes[3]
+    ax.set_title("Norm of the total gradient")
+    ax.plot(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
         
     plt.show(block=False)
 
-    # graph config: [2]
-    # we can appreciate the LINEAR rate of convergence!
-    fig, axes = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
+    fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
+
+    fig.suptitle("Plot - Logarithmic scale")
+    fig.canvas.manager.set_window_title("Plot - Logarithmic scale")
 
     ax = axes[0]
-    ax.set_title("Cost error")
     # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1] - cost_opt))
+    ax.set_title("Cost")
+    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
+    ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
 
     ax = axes[1]
     z_avg = np.mean(z, axis=1)
     ax.set_title("Consensus error")
     for i in range(NN):
-        ax.semilogy(np.arange(1, max_iter), np.abs(z[1:, i] - z_avg[1:])) # NOTE: skipping k=0
-        
+        # distance for each agent from the average of that iteration
+        ax.semilogy(np.arange(max_iter), np.abs(z[:, i] - z_avg))
+
+    ax = axes[2]
+    ax.set_title("Cost error")
+    # optimal cost error - one line! we are minimizing the sum not each l_i
+    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1] - cost_opt))
+
+    ax = axes[3]
+    ax.set_title("Norm of the total gradient - log scale")
+    ax.semilogy(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
+
+
+    if simulation:
+
+        for en in GraphType:
+            if en == GraphType.ERDOS_RENYI:
+                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.ERDOS_RENYI, {'edge_probability': p_ER})
+            elif en == GraphType.CYCLE:
+                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.CYCLE)
+            elif en == GraphType.PATH:
+                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.PATH)
+            elif en == GraphType.STAR:
+                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.STAR)
+            elif en == GraphType.COMPLETE:
+                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.COMPLETE)
+
+            show_graph_and_adj_matrix(graph, weighted_adj)
+            cost_functions = []
+            for i in range(NN):
+                cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
+
+            cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
+
+            show_simulations_plots(cost, cost_opt, grad)
+
     plt.show()
 
     # run set of simulations with different graphs (topology) with weights determined by Metropolis-Hasting.
