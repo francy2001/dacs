@@ -23,16 +23,41 @@ def quadratic_cost_fn(zz, QQ, rr):
     grad = QQ @ zz + rr
     return cost, grad
 
-def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
+def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
+    max_iter = zz.shape[0]
     cost = np.zeros((max_iter))
-    grad = np.zeros((max_iter, d))
+    grad = np.zeros((max_iter, Nt, d))
+    grad = grad.squeeze()
+
+    print(f"zz[0]: {zz[0]}")
 
     for k in range(max_iter - 1):
+        print(f"k: {k}")
         for i in range(NN):
-            zz[k+1, i] = zz[k].T @ weighted_adj[i].T - alpha * ss[k, i]
+            # print(f"zz[k].shape: {zz[k].shape}")
+            print(f"zz[k][0][0]: {zz[k][0][0]}")
+            # print(f"np.transpose(zz[k]).shape: {np.moveaxis(zz[k], 0, -1).shape}")
+            # print(f"ss[k,i].shape: {ss[k,i].shape}")
+            # print(f"weighted_adj[i].T.shape: {weighted_adj[i].T.shape}")
+
+            zz_k_T = np.moveaxis(zz[k], 0, -1)
+            # print(f"zz_k_T : {zz_k_T}")
+            # print(f"zz[k].T : {zz[k].T}")
+            # print(f"np.transpose(zz[k], axes=[1,2,0]): {np.transpose(zz[k], axes=[1,2,0])}")
+
+            # zz[k+1, i] = zz[k].T @ weighted_adj[i].T - alpha * ss[k, i]
+            mul = zz_k_T @ weighted_adj[i].T
+            mul = mul.squeeze()
+            zz[k+1, i] = mul - alpha * ss[k, i]
+
             # TODO: maybe reversed? zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
 
-            consensus = ss[k].T @ weighted_adj[i].T
+            ss_k_T = np.moveaxis(ss[k], 0, -1)
+            print(f"ss_k_T : {ss_k_T}")
+            print(f"ss[k].shape : {ss[k].shape}")
+            # consensus = ss[k].T @ weighted_adj[i].T
+            consensus = ss_k_T @ weighted_adj[i].T
+            consensus = consensus.squeeze()
             
             cost_k_i, grad_k_i = cost_functions[i](zz[k, i])
             _, grad_k_plus_1_i = cost_functions[i](zz[k+1, i])
@@ -42,6 +67,9 @@ def gradient_tracking(NN, d, zz, ss, weighted_adj, cost_functions):
 
             cost[k] += cost_k_i
             grad[k] += grad_k_i
+
+        # if k == 5:
+        #     break
 
     return cost, grad, zz, ss
     
@@ -192,6 +220,7 @@ def show_simulations_plots(cost, cost_opt, grad):
 if __name__ == "__main__":
     # TODO: parametri a linea di comando
     NN = 10     # number of agents
+    Nt = 1
     d = 2       # dimension of the state
     p_ER = 0.65 
 
@@ -245,9 +274,11 @@ if __name__ == "__main__":
     for i in range(NN):
         cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
 
-    cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
+    cost, grad, zz, ss = gradient_tracking(NN, Nt, d, z, s, weighted_adj, cost_functions, alpha)
     # print(f"l[0:10]: {cost[0:10]}")
     # print(f"cost[230:280] - cost_opt:{cost[230:280] - cost_opt}")
+
+    print(f"cost.shape: {cost.shape}")
 
     # graph config: [1]
     fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
@@ -326,7 +357,7 @@ if __name__ == "__main__":
             for i in range(NN):
                 cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
 
-            cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions)
+            cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions, alpha)
 
             show_simulations_plots(cost, cost_opt, grad)
 

@@ -2,8 +2,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import math
-
-from gradient_tracking import gradient_tracking, create_graph_with_metropolis_hastings_weights, GraphType, show_graph_and_adj_matrix
+import gradient_tracking as gt
 
 seed = 42
 np.random.seed(seed)
@@ -38,7 +37,7 @@ def cost_fn(zz, dd, pp):
         # print("norms[tau] shape: ", norms[tau].shape)
         # print("dd[tau] shape: ", dd[tau].shape)
 
-        grad[tau] = 4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+        grad[tau] = - 4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
 
     # print("grad shape: ", grad.shape)
     # print("grad: ", grad)
@@ -103,12 +102,14 @@ for i in range(N):
 for i in range(N):
     _, grad = cost_functions[i](z[0, i])
     s[0, i] = grad
+    # print(f"s[0, {i}]: {s[0, i]}")
+    # print(f"s[0, {i}].shape: {s[0, i].shape}")
 
 # general case of a graph with birkhoff-von-neumann weights
-graph, weighted_adj = create_graph_with_metropolis_hastings_weights(N, GraphType.COMPLETE)
-show_graph_and_adj_matrix(graph, weighted_adj)
+graph, weighted_adj = gt.create_graph_birkhoff_von_neumann(N, 5)
+gt.show_graph_and_adj_matrix(graph, weighted_adj)
 
-cost, grad, zz, ss = gradient_tracking(N, d, z, s, weighted_adj, cost_functions, alpha)
+cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
 fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
 
