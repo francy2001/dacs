@@ -9,9 +9,9 @@ np.random.seed(seed)
 
 # parameters
 # TODO: check vincolo che N >> Nt
-N = 10
+N = 4
 Nt = 3
-max_iter = 500
+max_iter = 500 * 3
 
 def cost_fn(zz, dd, pp):
 
@@ -30,17 +30,16 @@ def cost_fn(zz, dd, pp):
     cost = D.T @ D
     # print("cost shape: ", cost.shape)
     grad = np.zeros((Nt, d))
-
+    
+    # Normalization of the gradient due to the exploding gradient
+    epsilon = 1e-8  # avoid division by zero
     for tau in range(Nt):
-        # print("zz[tau] shape: ", zz[tau].shape)
-        # print("pp shape: ", pp.shape)
-        # print("norms[tau] shape: ", norms[tau].shape)
-        # print("dd[tau] shape: ", dd[tau].shape)
-
-        grad[tau] = - 4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
-
-    # print("grad shape: ", grad.shape)
-    # print("grad: ", grad)
+        raw_grad = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+        norm = np.linalg.norm(raw_grad)
+        if norm > 0:
+            grad[tau] = raw_grad / (norm + epsilon)
+        else:
+            grad[tau] = raw_grad  # o np.zeros_like(raw_grad)
 
     return cost, grad
 
@@ -80,7 +79,7 @@ plt.show()
 alpha = 0.05
 
 # two states
-z = np.zeros((max_iter, N, Nt, d)) # indeces: [time, who, state-component]
+z = np.zeros((max_iter, N, Nt, d)) # indeces: [time, who, which target, position-component]
 s = np.zeros((max_iter, N, Nt, d))
 
 # init z
@@ -111,7 +110,7 @@ gt.show_graph_and_adj_matrix(graph, weighted_adj)
 
 cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
-fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
+fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=2)
 
 # fig.suptitle("Plot - Linear scale")
 # fig.canvas.manager.set_window_title("Plot - Linear scale")
@@ -120,6 +119,19 @@ ax = axes[0]
 # optimal cost error - one line! we are minimizing the sum not each l_i
 ax.set_title("Cost")
 ax.plot(np.arange(max_iter - 1), cost[:-1])
+
+ax  = axes[1]
+ax.set_title("Norm of the total gradient")
+total_grad = grad
+
+print(f"total_grad[0:10]]: {total_grad[0:10]}")
+print(f"total_grad.shape: {total_grad.shape}")
+
+# total_grad_norm = np.linalg.norm(total_grad, axis=(1,2))
+total_grad_norm = [np.linalg.norm(total_grad[k].flatten()) for k in range(max_iter)]
+ax.plot(np.arange(max_iter - 1), total_grad_norm[:-1])
+
+# ax.plot(np.arange(max_iter - 1), [) for k in range(max_iter - 1)])**2)
 
 plt.show()
 

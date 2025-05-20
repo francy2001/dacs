@@ -29,32 +29,31 @@ def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
     grad = np.zeros((max_iter, Nt, d))
     grad = grad.squeeze()
 
-    print(f"zz[0]: {zz[0]}")
-
     for k in range(max_iter - 1):
-        print(f"k: {k}")
+        # print(f"ss[{k}]: {ss[k]}")
+        # print(f"ss[{k}].shape: {ss[k].shape}")
+
         for i in range(NN):
             # print(f"zz[k].shape: {zz[k].shape}")
-            print(f"zz[k][0][0]: {zz[k][0][0]}")
+            # print(f"zz[k][0][0]: {zz[k][0][0]}")
             # print(f"np.transpose(zz[k]).shape: {np.moveaxis(zz[k], 0, -1).shape}")
             # print(f"ss[k,i].shape: {ss[k,i].shape}")
             # print(f"weighted_adj[i].T.shape: {weighted_adj[i].T.shape}")
 
+            # Move the agent-axis in the last index such that we have (Nt,d,N)@(N,1)-->(Nt,d,1)
             zz_k_T = np.moveaxis(zz[k], 0, -1)
             # print(f"zz_k_T : {zz_k_T}")
             # print(f"zz[k].T : {zz[k].T}")
             # print(f"np.transpose(zz[k], axes=[1,2,0]): {np.transpose(zz[k], axes=[1,2,0])}")
 
             # zz[k+1, i] = zz[k].T @ weighted_adj[i].T - alpha * ss[k, i]
+            # TODO: maybe reversed? zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
             mul = zz_k_T @ weighted_adj[i].T
             mul = mul.squeeze()
             zz[k+1, i] = mul - alpha * ss[k, i]
 
-            # TODO: maybe reversed? zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
-
+            # Move the agent-axis in the last index such that we have (Nt,d,N)@(N,1)-->(Nt,d,1)
             ss_k_T = np.moveaxis(ss[k], 0, -1)
-            print(f"ss_k_T : {ss_k_T}")
-            print(f"ss[k].shape : {ss[k].shape}")
             # consensus = ss[k].T @ weighted_adj[i].T
             consensus = ss_k_T @ weighted_adj[i].T
             consensus = consensus.squeeze()
@@ -66,10 +65,9 @@ def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
             ss[k+1, i] = consensus + local_innovation
 
             cost[k] += cost_k_i
-            grad[k] += grad_k_i
+            grad[k] += grad_k_i # total gradient, centralized
 
-        # if k == 5:
-        #     break
+        # grad[k] = sum of NN matrices with shape (Nt x d)
 
     return cost, grad, zz, ss
     
