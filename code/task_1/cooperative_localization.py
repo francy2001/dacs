@@ -9,9 +9,9 @@ np.random.seed(seed)
 
 # parameters
 # TODO: check vincolo che N >> Nt
-N = 4
 Nt = 3
-max_iter = 500 * 3
+N = 3 * Nt
+max_iter = 3000
 
 def cost_fn(zz, dd, pp):
 
@@ -31,15 +31,18 @@ def cost_fn(zz, dd, pp):
     # print("cost shape: ", cost.shape)
     grad = np.zeros((Nt, d))
     
-    # Normalization of the gradient due to the exploding gradient
-    epsilon = 1e-8  # avoid division by zero
     for tau in range(Nt):
-        raw_grad = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
-        norm = np.linalg.norm(raw_grad)
-        if norm > 0:
-            grad[tau] = raw_grad / (norm + epsilon)
-        else:
-            grad[tau] = raw_grad  # o np.zeros_like(raw_grad)
+        grad[tau] = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+
+    # Normalization of the gradient due to the exploding gradient
+    # epsilon = 1e-8  # avoid division by zero
+    # for tau in range(Nt):
+    #     raw_grad = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+    #     norm = np.linalg.norm(raw_grad)
+    #     if norm > 0:
+    #         grad[tau] = raw_grad / (norm + epsilon)
+    #     else:
+    #         grad[tau] = raw_grad  # o np.zeros_like(raw_grad)
 
     return cost, grad
 
@@ -76,7 +79,7 @@ plt.show()
 # -------------------------------------
 # |   DISTRIBUTED GRADIENT TRACKING   |
 # -------------------------------------
-alpha = 0.05
+alpha = 1e-4
 
 # two states
 z = np.zeros((max_iter, N, Nt, d)) # indeces: [time, who, which target, position-component]
@@ -95,7 +98,7 @@ for i in range(N):
     # print(f"robot_pos[i].shape: {robot_pos[i].shape}")
     # print(f"noisy_distances[i]: {noisy_distances[i]}")
     # print(f"noisy_distances[i].shape: {noisy_distances[i].shape}")
-    cost_functions.append(lambda zz, i=i: cost_fn(zz, noisy_distances[i], robot_pos[i]))
+    cost_functions.append(lambda zz, i=i: cost_fn(zz, distances[i], robot_pos[i]))
 
 # init s
 for i in range(N):
@@ -118,7 +121,7 @@ fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=2)
 ax = axes[0]
 # optimal cost error - one line! we are minimizing the sum not each l_i
 ax.set_title("Cost")
-ax.plot(np.arange(max_iter - 1), cost[:-1])
+ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
 
 ax  = axes[1]
 ax.set_title("Norm of the total gradient")
@@ -136,6 +139,8 @@ ax.plot(np.arange(max_iter - 1), total_grad_norm[:-1])
 plt.show()
 
 # TODO: check con gradient centralized
+
+
 
 # Run multiple simulations
 #   call gradient_tracking(N, list: QQ, list: rr)
