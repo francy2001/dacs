@@ -23,7 +23,7 @@ def cost_fn(zz, dd, pp):
     norms = np.linalg.norm(zz - pp, axis=1)
     # print("norms: ", norms)
     # print("norms shape: ", norms.shape)
-    # print("dd: ", dd) 
+    # print("dd.shape: ", dd.shape) 
     # print("dd**2: ", dd**2)
     D = dd**2 - norms**2
 
@@ -79,7 +79,19 @@ plt.show()
 # -------------------------------------
 # |   DISTRIBUTED GRADIENT TRACKING   |
 # -------------------------------------
-alpha = 1e-4
+## chosing alpha
+#
+# alphas = np.logspace(-4, -3, num=10) --> to have a set of possible values and chose the best one
+#
+# alpha = 1e-4 --> 3000 iterazioni arriva a poco più di 1e-9
+# alpha = 0.0001291549665014884 --> 3000 iterazioni arriva a poco più di 1e-12
+# alpha = 0.0001668100537200059 --> 3000 iterazioni arriva a poco più di 1e-17
+# alpha = 0.00021544346900318845 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
+# alpha = 0.0002782559402207126 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
+# alpha = 0.0003593813663804626 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
+# alpha = 0.0004661588769516728 --> esplode
+
+alpha = 0.0003593813663804626    
 
 # two states
 z = np.zeros((max_iter, N, Nt, d)) # indeces: [time, who, which target, position-component]
@@ -90,6 +102,13 @@ z_init = np.random.normal(size=(N, Nt, d))
 z[0] = z_init
 print(f"z_init: {z_init}")
 print(f"z_init shape: {z_init.shape}")
+
+# TODO: check con gradient centralized
+# -------------------
+# |   CENTRALIZED   |
+# -------------------
+# sum of the cost functions
+
 
 # define ell_i
 cost_functions = []
@@ -113,17 +132,22 @@ gt.show_graph_and_adj_matrix(graph, weighted_adj)
 
 cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
-fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=2)
+fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=3)
 
 # fig.suptitle("Plot - Linear scale")
 # fig.canvas.manager.set_window_title("Plot - Linear scale")
 
 ax = axes[0]
 # optimal cost error - one line! we are minimizing the sum not each l_i
-ax.set_title("Cost")
+ax.set_title("[Log] Cost")
 ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
 
-ax  = axes[1]
+ax = axes[1]
+ax.set_title("[Normal] Cost")
+ax.plot(np.arange(max_iter - 1), cost[:-1])
+# ax.plot(np.arange(max_iter - 1), cost_opt * np.ones((max_iter - 1)), "r--")
+
+ax  = axes[2]
 ax.set_title("Norm of the total gradient")
 total_grad = grad
 
@@ -138,7 +162,6 @@ ax.plot(np.arange(max_iter - 1), total_grad_norm[:-1])
 
 plt.show()
 
-# TODO: check con gradient centralized
 
 
 
