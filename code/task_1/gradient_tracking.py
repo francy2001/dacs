@@ -186,6 +186,10 @@ def create_graph_birkhoff_von_neumann(NN, num_vertices):
 
     return graph, doubly_stochastic_matrix
 
+def close(event):
+    if event.key == 'q':  # Check if the pressed key is 'q'
+        plt.close()  # Close the figure
+
 def show_graph_and_adj_matrix(graph, adj_matrix=None):
 
     fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
@@ -197,23 +201,24 @@ def show_graph_and_adj_matrix(graph, adj_matrix=None):
     cax = axs[1].matshow(adj_matrix, cmap='plasma')# , vmin=0, vmax=1)
     fig.colorbar(cax)
 
-    plt.show(block=False)
+    plt.gcf().canvas.mpl_connect('key_press_event', close)
+    plt.show()
 
-def show_simulations_plots(cost, cost_opt, grad):
 
+def show_simulations_plots(cost, cost_opt, grad, max_iter=max_iter):
     fig, axs = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
 
     ax = axs[0]
     # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("Cost")
+    ax.set_title("[LOG] Cost")
     ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
     ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
 
     ax = axs[1]
-    ax.set_title("Norm of the total gradient - log scale")
+    ax.set_title("[LOG] Norm of the total gradient")
     ax.semilogy(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
 
-    plt.show(block=False)
+    plt.show()
 
 if __name__ == "__main__":
     # TODO: parametri a linea di comando
