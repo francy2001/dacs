@@ -1,22 +1,29 @@
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-import math
-
-from enum import Enum
+import graph_utils
+import plot_utils
 
 seed = 48
 np.random.seed(seed)
 
-max_iter = 500
-simulation = False
+max_iter = 1500
+simulation = True
 
-class GraphType(Enum):
-    ERDOS_RENYI = 1
-    CYCLE = 2
-    PATH = 3
-    STAR = 4
-    COMPLETE = 5
+def __random_rotation_matrix(N):
+    # Step 1: Generate a random N x N matrix
+    A = np.random.rand(N, N)
+    
+    # Step 2: Perform QR decomposition
+    # Compute the qr factorization of a matrix. Factor the matrix a as qr, where q is orthonormal and r is upper-triangular.
+    Q, R = np.linalg.qr(A)
+    
+    # Step 3: Ensure a proper rotation matrix (det(Q) should be 1)
+    # If the determinant is negative, flip the sign of the last column
+    if np.linalg.det(Q) < 0:
+        Q[:, -1] *= -1
+    
+    return Q
 
 def quadratic_cost_fn(zz, QQ, rr):
     cost = 0.5 * zz.T @ QQ @ zz + rr.T @ zz
@@ -70,155 +77,7 @@ def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
         # grad[k] = sum of NN matrices with shape (Nt x d)
 
     return cost, grad, zz, ss
-    
-def metropolis_hastings_weights(graph):
-    N = graph.number_of_nodes()
-    A = np.zeros(shape=(N, N), dtype='float64')
-    for i in range(A.shape[0]):
-        N_i = list(graph.neighbors(i))
-        d_i = len(N_i)
-        for j in range(A.shape[0]):
-            N_j = list(graph.neighbors(j))
-            d_j = len(N_j)
-            if i == j: 
-                sum = 0
-                for h in N_i:
-                    sum += A[i, h]
-                A[i,j] = 1 - sum
-            elif graph.has_edge(i,j):
-                A[i,j] = 1 / (1 + max(d_i, d_j))
 
-    # Normalize
-    max_iterations = 1000
-    tolerance = 10e-9
-    for _ in range(max_iterations):
-        A = A / np.sum(np.abs(A), axis=1, keepdims=True)
-        A = A / np.sum(np.abs(A), axis=0, keepdims=True)
-        A = np.abs(A)
-
-        # Check for convergence
-        if np.all(np.sum(A, axis=1) - 1 < tolerance) and np.all(np.sum(A, axis=0) - 1 < tolerance):
-            break
-
-    return A
-
-def create_graph_with_metropolis_hastings_weights(NN, graph_type, args={}):
-    global seed
-
-    ONES = np.ones((NN, NN))
-    
-    if graph_type == GraphType.ERDOS_RENYI:
-        p_er = args['edge_probability']
-        while True:
-            G = nx.erdos_renyi_graph(NN, p_er, seed)
-            Adj = nx.adjacency_matrix(G).toarray()
-            is_strongly_connected = np.all(np.linalg.matrix_power(Adj + np.eye(NN), NN) > 0)
-            
-            if is_strongly_connected:
-                break
-
-    elif graph_type == GraphType.CYCLE:
-        G = nx.cycle_graph(NN)
-
-    elif graph_type == GraphType.PATH:
-        G = nx.path_graph(NN)
-    
-    elif graph_type == GraphType.STAR:
-        G = nx.star_graph(NN - 1)
-
-    elif graph_type == GraphType.COMPLETE:
-        G = nx.complete_graph(NN)
-
-    A = metropolis_hastings_weights(G)
-
-    return G, A
-
-def create_graph_birkhoff_von_neumann(NN, num_vertices):
-    I_n = np.eye(NN)
-    
-    # key=hash; value=np.ndarray
-    vertices = {}
-    
-    # Number of ways to choose k items from n items without repetition and with order.
-    max = math.perm(NN, NN)
-    print(f"Number of possibles vertices: {math.perm(NN, NN)}") # math.factorial(NN)
-    assert num_vertices <= max, "Vertices won't be unique"
-
-    # Ensure the presence of the Identity Matrix, self-loops
-    vertices[hash(I_n.tobytes())] = I_n
-
-    while(len(vertices) < num_vertices):
-        vertix = np.random.permutation(I_n)
-        vertix_hash = hash(vertix.tobytes())
-        
-        if vertix_hash not in vertices:
-            vertices[vertix_hash] = vertix
-    
-    # k=class_weights, the len(k) is the number of extracted numbers
-    class_weights = np.ones((num_vertices)) # equally distributed classes
-
-    convex_coefficients = np.random.dirichlet(alpha=class_weights, size=1).squeeze()
-    # print(f"convex_coefficients: {convex_coefficients}")
-
-    doubly_stochastic_matrix = np.zeros((NN, NN))
-    vertices = list(vertices.values())
-    # print(f"vertices: {vertices}")
-    
-    for i in range(num_vertices):
-        doubly_stochastic_matrix += vertices[i] * convex_coefficients[i]
-
-    # Ensure symmetry i.e. undirected graph
-    doubly_stochastic_matrix = (doubly_stochastic_matrix + doubly_stochastic_matrix.T) / 2
-
-    # print(doubly_stochastic_matrix)
-    # print(np.sum(doubly_stochastic_matrix, axis=0))
-    # print(np.sum(doubly_stochastic_matrix, axis=1))
-
-    paths_up_to_N = np.linalg.matrix_power(doubly_stochastic_matrix + np.eye(NN), NN)
-
-    # if is full, then in strongly connected
-    if np.all(paths_up_to_N > 0):
-        print("The graph is strongly connected")
-    else: 
-        print("The graph is NOT strongly connected!")
-
-    graph = nx.from_numpy_array(doubly_stochastic_matrix)
-
-    return graph, doubly_stochastic_matrix
-
-def close(event):
-    if event.key == 'q':  # Check if the pressed key is 'q'
-        plt.close()  # Close the figure
-
-def show_graph_and_adj_matrix(graph, adj_matrix=None):
-
-    fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
-    nx.draw(graph, with_labels=True, ax=axs[0])
-
-    if adj_matrix is None:
-        adj_matrix = nx.adjacency_matrix(graph).toarray()
-    
-    cax = axs[1].matshow(adj_matrix, cmap='plasma')# , vmin=0, vmax=1)
-    fig.colorbar(cax)
-
-    plt.gcf().canvas.mpl_connect('key_press_event', close)
-    plt.show()
-
-
-def show_simulations_plots(cost, cost_opt, grad, max_iter=max_iter):
-    fig, axs = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
-
-    ax = axs[0]
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("[LOG] Cost")
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
-
-    ax = axs[1]
-    ax.set_title("[LOG] Norm of the total gradient")
-    ax.semilogy(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
-
-    plt.show()
 
 if __name__ == "__main__":
     # TODO: parametri a linea di comando
@@ -231,11 +90,18 @@ if __name__ == "__main__":
     rr_list = []
 
     for i in range(NN):
-        Q = np.diag(np.random.uniform(size=d)) # TODO: use SVD, syntetize rotations
+        Q = np.diag(np.random.uniform(size=d)) # TODO: use "SVD", syntetize rotations
+        # R = __random_rotation_matrix(d) # NOTE: it's not working properly...
+        # Q = R @ Q
+
         r = np.random.uniform(size=d)
 
         QQ_list.append(Q)
         rr_list.append(r)
+
+    cost_functions = []
+    for i in range(NN):
+        cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
 
     # -------------------
     # |   CENTRALIZED   |
@@ -266,105 +132,65 @@ if __name__ == "__main__":
 
     # init s
     for i in range(NN):
-        _, grad = quadratic_cost_fn(z[0, i], QQ_list[i], rr_list[i])
+        _, grad = cost_functions[i](z[0, i])
         s[0, i] = grad
 
-    # general case of a graph with birkhoff-von-neumann weights
-    graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.COMPLETE)
-    show_graph_and_adj_matrix(graph, weighted_adj)
+    # create graph
+    args = {
+        'edge_probability': p_ER,
+        'seed': seed
+    }
+    graph, weighted_adj = graph_utils.create_graph_with_metropolis_hastings_weights(NN, graph_utils.GraphType.ERDOS_RENYI, args)
+    
+    # show graph and adj matrix
+    fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
+    plot_utils.show_graph_and_adj_matrix(fig, axs, graph, weighted_adj)
+    plot_utils.show_and_wait(fig)
 
-    cost_functions = []
-    for i in range(NN):
-        cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
-
+    # run gradient tracking
     cost, grad, zz, ss = gradient_tracking(NN, Nt, d, z, s, weighted_adj, cost_functions, alpha)
-    # print(f"l[0:10]: {cost[0:10]}")
-    # print(f"cost[230:280] - cost_opt:{cost[230:280] - cost_opt}")
+    
+    def show_plots(semilogy):
+        fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
+        title = f"Plots {'(Logaritmic y scale)' if semilogy else '(Linear scale)'}"
+        fig.suptitle(title)
+        fig.canvas.manager.set_window_title(title)
+        plot_utils.show_cost_evolution(axes[0], cost, max_iter, semilogy, cost_opt)
+        plot_utils.show_optimal_cost_error(axes[1], cost, cost_opt, max_iter, semilogy)
+        plot_utils.show_consensus_error(axes[2], NN, z, max_iter, semilogy)
+        plot_utils.show_norm_of_total_gradient(axes[3], grad, max_iter, semilogy)
+        plot_utils.show_and_wait(fig)
 
-    print(f"cost.shape: {cost.shape}")
-
-    # graph config: [1]
-    fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
-
-    fig.suptitle("Plot - Linear scale")
-    fig.canvas.manager.set_window_title("Plot - Linear scale")
-
-    ax = axes[0]
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("Cost")
-    ax.plot(np.arange(max_iter - 1), cost[:-1])
-    ax.plot(np.arange(max_iter - 1), cost_opt * np.ones((max_iter - 1)), "r--")
-
-    ax = axes[1]
-    z_avg = np.mean(z, axis=1)
-    ax.set_title("Consensus error")
-    for i in range(NN):
-        # distance for each agent from the average of that iteration
-        ax.plot(np.arange(max_iter), z[:, i] - z_avg)
-
-    ax = axes[2]
-    ax.set_title("Cost error")
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.plot(np.arange(max_iter - 1), cost[:-1] - cost_opt)
-
-    ax  = axes[3]
-    ax.set_title("Norm of the total gradient")
-    ax.plot(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
-        
-    plt.show(block=False)
-
-    fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
-
-    fig.suptitle("Plot - Logarithmic scale")
-    fig.canvas.manager.set_window_title("Plot - Logarithmic scale")
-
-    ax = axes[0]
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("Cost")
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
-
-    ax = axes[1]
-    z_avg = np.mean(z, axis=1)
-    ax.set_title("Consensus error")
-    for i in range(NN):
-        # distance for each agent from the average of that iteration
-        ax.semilogy(np.arange(max_iter), np.abs(z[:, i] - z_avg))
-
-    ax = axes[2]
-    ax.set_title("Cost error")
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1] - cost_opt))
-
-    ax = axes[3]
-    ax.set_title("Norm of the total gradient - log scale")
-    ax.semilogy(np.arange(max_iter - 1), np.linalg.norm(grad[:-1], axis=1)**2)
-
+    show_plots(semilogy=False)
+    show_plots(semilogy=True)
 
     if simulation:
+        for graph_type in graph_utils.GraphType:
+            # prepare args
+            args = {}
+            if graph_type == graph_utils.GraphType.ERDOS_RENYI:
+                args = {
+                    'edge_probability': p_ER,
+                    'seed': seed
+                }
 
-        for en in GraphType:
-            if en == GraphType.ERDOS_RENYI:
-                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.ERDOS_RENYI, {'edge_probability': p_ER})
-            elif en == GraphType.CYCLE:
-                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.CYCLE)
-            elif en == GraphType.PATH:
-                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.PATH)
-            elif en == GraphType.STAR:
-                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.STAR)
-            elif en == GraphType.COMPLETE:
-                graph, weighted_adj = create_graph_with_metropolis_hastings_weights(NN, GraphType.COMPLETE)
+            # create graph
+            graph, weighted_adj = graph_utils.create_graph_with_metropolis_hastings_weights(NN, graph_type, args)
 
-            show_graph_and_adj_matrix(graph, weighted_adj)
-            cost_functions = []
-            for i in range(NN):
-                cost_functions.append(lambda zz, i=i: quadratic_cost_fn(zz, QQ_list[i], rr_list[i]))
+            fig, axs = plt.subplots(figsize=(7, 7), nrows=2, ncols=2)
+            title = f"Graph Type = {graph_type}"
+            fig.suptitle(title)
+            fig.canvas.manager.set_window_title(title)
 
-            cost, grad, zz, ss = gradient_tracking(NN, d, z, s, weighted_adj, cost_functions, alpha)
+            plot_utils.show_graph_and_adj_matrix(fig, axs[0], graph, weighted_adj)
+            
+            # run gradient tracking with previously defined cost_functions
+            cost, grad, zz, ss = gradient_tracking(NN, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
-            show_simulations_plots(cost, cost_opt, grad)
-
-    plt.show()
+            plot_utils.show_cost_evolution(axs[1][0], cost, max_iter, semilogy=True, cost_opt=cost_opt)
+            plot_utils.show_norm_of_total_gradient(axs[1][1], grad, max_iter, semilogy=True)
+            plot_utils.show_and_wait(fig)
+    
 
     # run set of simulations with different graphs (topology) with weights determined by Metropolis-Hasting.
     # for each simulation:

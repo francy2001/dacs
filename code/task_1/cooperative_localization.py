@@ -1,7 +1,8 @@
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-import math
+import graph_utils
+import plot_utils
 import gradient_tracking as gt
 
 seed = 42
@@ -66,10 +67,6 @@ noise = np.random.normal(0, 0.1, distances.shape)
 noisy_distances = distances + noise
 print("Noisy Distances: {}".format(noisy_distances))
 
-def close(event):
-    if event.key == 'q':  # Check if the pressed key is 'q'
-        plt.close()  # Close the figure
-
 fig = plt.figure()
 plt.xlabel('x')
 plt.ylabel('y')
@@ -77,9 +74,7 @@ ax = fig.gca()
 ax.plot(robot_pos[:,0], robot_pos[:,1], 'ro', label='Robot Positions')
 ax.plot(target_pos[:,0], target_pos[:,1], 'bx', label='Target Positions')
 plt.grid()
-plt.gcf().canvas.mpl_connect('key_press_event', close)
-plt.show()
-
+plot_utils.show_and_wait(fig)
 
 # -------------------------------------
 # |   DISTRIBUTED GRADIENT TRACKING   |
@@ -126,7 +121,7 @@ for i in range(N):
 # --------------------------------------------------------------
 # TODO: check con gradient centralized
 # -------------------
-# |   CENTRALIZED   |
+# |   CENTRALIZED   | (Heavy-Ball method)
 # -------------------
 # sum of the cost functions
 
@@ -141,7 +136,6 @@ def centralized_cost_fn(zz):
     return total_cost, total_grad
 
 
-# the two states
 # two states
 z_hb = np.zeros((max_iter, Nt, d)) # indeces: [time, which target, position-component]
 xi_hb = np.zeros((max_iter, Nt, d))
@@ -185,81 +179,77 @@ for i in range(N):
     # print(f"s[0, {i}].shape: {s[0, i].shape}")
 
 # general case of a graph with birkhoff-von-neumann weights
-graph, weighted_adj = gt.create_graph_birkhoff_von_neumann(N, 5)
-gt.show_graph_and_adj_matrix(graph, weighted_adj)
+graph, weighted_adj = graph_utils.create_graph_birkhoff_von_neumann(N, 5)
 
+# show graph and weighted adjacency matrix
+fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
+plot_utils.show_graph_and_adj_matrix(fig, axs, graph, weighted_adj)
+plot_utils.show_and_wait(fig)
+
+# run the gradient tracking method
 cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
 fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=3)
 
-# fig.suptitle("Plot - Linear scale")
-# fig.canvas.manager.set_window_title("Plot - Linear scale")
-
 ax = axes[0]
 # optimal cost error - one line! we are minimizing the sum not each l_i
-ax.set_title("[Log] Cost")
-ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]), label='Distributed (GT)')
-ax.semilogy(np.arange(max_iter - 1), np.abs(cost_hb[:-1]), label='Centralized (HB)')
-ax.legend()
+plot_utils.show_cost_evolution(ax, cost, max_iter, semilogy=True, label="Distributed (GT)")
+plot_utils.show_cost_evolution(ax, cost_hb, max_iter, semilogy=True, label="Centralized (HB)")
 
 ax = axes[1]
-ax.set_title("[Normal] Cost")
-ax.plot(np.arange(max_iter - 1), cost[:-1], label='Distributed (GT)')
-ax.plot(np.arange(max_iter - 1), cost_hb[:-1], label='Centralized (HB)')
-# ax.plot(np.arange(max_iter - 1), cost_opt * np.ones((max_iter - 1)), "r--")
+plot_utils.show_cost_evolution(ax, cost, max_iter, semilogy=False, label="Distributed (GT)")
+plot_utils.show_cost_evolution(ax, cost_hb, max_iter, semilogy=False, label="Centralized (HB)")
 
 ax  = axes[2]
-ax.set_title("Norm of the total gradient")
-total_grad = grad
+total_grad = [grad[k].flatten() for k in range(max_iter)]
+total_grad_hb = [grad_hb[k].flatten() for k in range(max_iter)]
+plot_utils.show_norm_of_total_gradient(ax, total_grad, max_iter, semilogy=True, label="Distributed (GT)")
+plot_utils.show_norm_of_total_gradient(ax, total_grad_hb, max_iter, semilogy=True, label="Centralized (HB)")
 
-# total_grad_norm = np.linalg.norm(total_grad, axis=(1,2))
-total_grad_norm = [np.linalg.norm(total_grad[k].flatten()) for k in range(max_iter)]
-total_grad_norm_hb = [np.linalg.norm(grad_hb[k].flatten()) for k in range(max_iter)]
-ax.plot(np.arange(max_iter - 1), total_grad_norm[:-1], label='Distributed (GT)')
-ax.plot(np.arange(max_iter - 1), total_grad_norm_hb[:-1], label='Centralized (HB)')
-
-# ax.plot(np.arange(max_iter - 1), [) for k in range(max_iter - 1)])**2)
-
-plt.gcf().canvas.mpl_connect('key_press_event', close)
-plt.show()
+plot_utils.show_and_wait(fig)
 
 
+
+# -------------------------
+# |      SIMULATIONS      |
+# -------------------------
 simulation = True
 p_ER = 0.65
 
-def show_simulations_plots(cost, cost_opt, grad):
-    global max_iter
-
-    fig, axs = plt.subplots(figsize=(8, 6), nrows=1, ncols=2)
-
-    ax = axs[0]
-    # optimal cost error - one line! we are minimizing the sum not each l_i
-    ax.set_title("[LOG] Cost")
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost[:-1]))
-    ax.semilogy(np.arange(max_iter - 1), np.abs(cost_opt * np.ones((max_iter - 1))), "r--")
-
-    ax = axs[1]
-    ax.set_title("[LOG] Norm of the total gradient")
-    total_grad_norm = [np.linalg.norm(grad[k].flatten()) for k in range(max_iter)]
-    ax.semilogy(np.arange(max_iter - 1), total_grad_norm[:-1])
-
-    plt.gcf().canvas.mpl_connect('key_press_event', close)
-    plt.show()
-
 if simulation:
-    for graph_type in gt.GraphType:
+    print("Simulations...")
+
+    for graph_type in graph_utils.GraphType:
+        # TODO: for each one do the comparison with the centralized version
         args = {}
 
         # prepare args
-        if graph_type == gt.GraphType.ERDOS_RENYI:
-            args = {'edge_probability': p_ER}
+        if graph_type == graph_utils.GraphType.ERDOS_RENYI:
+            args = {
+                'edge_probability': p_ER,
+                'seed': seed
+            }
         
-        graph, weighted_adj = gt.create_graph_with_metropolis_hastings_weights(N, graph_type, args)
+        # create graph and show it
+        graph, weighted_adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_type, args)
+        
+        fig, axs = plt.subplots(figsize=(12, 8), nrows=2, ncols=2)
+        title = f"Graph Type = {graph_type}"
+        fig.suptitle(title)
+        fig.canvas.manager.set_window_title(title)
 
-        gt.show_graph_and_adj_matrix(graph, weighted_adj)
+        plot_utils.show_graph_and_adj_matrix(fig, axs[0], graph, weighted_adj)
+        
+        # run gradient tracking with the previously defined cost functions
+        # TODO: is it right to reuse the same z and s?
         cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
 
-        show_simulations_plots(cost, 0.0, grad)
+        total_grad = [grad[k].flatten() for k in range(max_iter)]
+        plot_utils.show_cost_evolution(axs[1][0], cost, max_iter, semilogy=True)
+        plot_utils.show_norm_of_total_gradient(axs[1][1], total_grad, max_iter, semilogy=True)
+        
+        plot_utils.show_and_wait(fig)
+
 
 
 # Run multiple simulations
