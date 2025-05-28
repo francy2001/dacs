@@ -1,8 +1,12 @@
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-import graph_utils
-import plot_utils
+import sys
+import os
+
+sys.path.insert(0, '/home/francesca/Desktop/das/dacs/code')
+
+from utils import graph_utils, plot_utils
 
 seed = 48
 np.random.seed(seed)
