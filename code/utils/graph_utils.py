@@ -14,34 +14,20 @@ class GraphType(Enum):
 
 def metropolis_hastings_weights(graph):
     N = graph.number_of_nodes()
-    A = np.zeros(shape=(N, N), dtype='float64')
-    for i in range(A.shape[0]):
+    # A = nx.adjacency_matrix(graph).toarray()
+    W = np.zeros(shape=(N, N), dtype='float64')
+    for i in range(N):
         N_i = list(graph.neighbors(i))
         d_i = len(N_i)
-        for j in range(A.shape[0]):
+        for j in range(N):
             N_j = list(graph.neighbors(j))
             d_j = len(N_j)
-            if i == j: 
-                sum = 0
-                for h in N_i:
-                    sum += A[i, h]
-                A[i,j] = 1 - sum
-            elif graph.has_edge(i,j):
-                A[i,j] = 1 / (1 + max(d_i, d_j))
+            if graph.has_edge(i,j):
+                W[i,j] = 1 / (1 + max(d_i, d_j))
 
-    # Normalize
-    
-    tolerance = 10e-15
-    while True:
-        A = A / np.sum(np.abs(A), axis=1, keepdims=True)
-        A = A / np.sum(np.abs(A), axis=0, keepdims=True)
-        A = np.abs(A)
+        W[i,i] = 1 - np.sum(W[i, :])
 
-        # Check for convergence
-        if np.all(np.sum(A, axis=1) - 1 < tolerance) and np.all(np.sum(A, axis=0) - 1 < tolerance):
-            break
-
-    return A
+    return W
 
 def create_graph_with_metropolis_hastings_weights(NN, graph_type, args={}):
     ONES = np.ones((NN, NN))
