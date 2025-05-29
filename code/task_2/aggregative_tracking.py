@@ -6,7 +6,7 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils import graph_utils, plot_utils
+from utils import graph_utils, plot_utils, animation
 
 seed = 42
 np.random.seed(seed)
@@ -80,7 +80,7 @@ def gradient_computation(zz, rr, barycenter, gamma_1, gamma_2, N, type='first'):
 
 if __name__ == "__main__":
     # setup 
-    N = 3  # number of agents
+    N = 4  # number of agents
     d = 2  # dimension of the state space
 
     # three states
@@ -158,35 +158,12 @@ if __name__ == "__main__":
 
     ax = axes[0]
     # optimal cost error - one line! we are minimizing the sum not each l_i
-    plot_utils.show_cost_evolution(ax, cost_centr, max_iter, semilogy=True, label="Centralized")
+    plot_utils.show_cost_evolution(ax, cost_centr, max_iter, semilogy=True, label="Centralized Aggregative Tracking")
 
     ax = axes[1]
-    plot_utils.show_cost_evolution(ax, cost_centr, max_iter, semilogy=False, label="Centralized")
+    plot_utils.show_cost_evolution(ax, cost_centr, max_iter, semilogy=False, label="Centralized Aggregative Tracking")
 
     plot_utils.show_and_wait(fig)
 
-    fig2 = plt.figure()
-    plt.xlabel('x')
-    plt.ylabel('y')
-    ax = fig2.gca()
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-10, 10)
-    ax.plot(z_centralized[max_iter-1,:,0], z_centralized[max_iter-1,:,1], 'ro', label='Robot Positions')
-    ax.plot(target_pos[:,0], target_pos[:,1], 'bx', label='Target Positions')
-    plt.grid()
-
-    fig = plt.figure()
-    plt.xlabel('x')
-    plt.ylabel('y')
-    ax = fig.gca()
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-10, 10)
-    ax.plot(z_init[:,0], z_init[:,1], 'ro', label='Robot Positions')
-    ax.plot(target_pos[:,0], target_pos[:,1], 'bx', label='Target Positions')
-    plt.grid()
-
-    plt.show()
-
-
-
-    # pass
+    fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
+    animation.animation(ax, z_centralized, target_pos)
