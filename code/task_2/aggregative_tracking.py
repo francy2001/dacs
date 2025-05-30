@@ -125,7 +125,7 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
 
         for i in range(N):
             # NOTE: usage of ss[k,i] instead of barycenter
-            cost = cost_functions[i](zz[k,i], ss)
+            cost = cost_functions[i](zz[k,i], ss[k,i])
             
             # [ zz update ]
             nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
@@ -133,19 +133,19 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             zz[k+1, i] = zz[k, i] - alpha * grad
 
             # [ ss update ]
-            ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
-            ss_consensus = ss_k_T @ adj[i].T
-            ss_consensus = ss_consensus.squeeze()
+            # ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
+            ss_consensus = ss[k].T @ adj[i].T
+            # ss_consensus = ss_consensus.squeeze()
             ss_local_innovation = zz[k+1, i] - zz[k, i]
             ss[k+1, i] = ss_consensus + ss_local_innovation
 
             # [ vv update ]
-            vv_k_T = np.moveaxis(vv[k], 0, -1) # from (N, d) to (d, N)
-            vv_consensus = vv_k_T @ adj[i].T
-            vv_consensus = vv_consensus.squeeze()
-            nabla2_k = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
-            nabla2_kp1 = gradient_computation(zz[k+1,i], target_pos[i], ss[k+1,i], gamma_1[i], gamma_2[i], N, type='first')
-            vv_local_innovation = nabla2_kp1 - nabla2_k
+            # vv_k_T = np.moveaxis(vv[k], 0, -1) # from (N, d) to (d, N)
+            vv_consensus = vv[k].T @ adj[i].T
+            # vv_consensus = vv_consensus.squeeze()
+            nabla2_k = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='second')
+            nabla2_k_plus_1 = gradient_computation(zz[k+1,i], target_pos[i], ss[k+1,i], gamma_1[i], gamma_2[i], N, type='second')
+            vv_local_innovation = nabla2_k_plus_1 - nabla2_k
             vv[k+1, i] = vv_consensus + vv_local_innovation
 
             total_cost[k] += cost
@@ -166,7 +166,8 @@ if __name__ == "__main__":
     z_init = np.random.normal(size=(N, d)) * 10
     print("Initial Positions: {}\tShape: {}".format(z_init, z_init.shape))
 
-    graph, adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.COMPLETE)
+    args = {'edge_probability': 0.65, 'seed': seed}
+    graph, adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.ERDOS_RENYI, args)
 
     # define ell_i
     gamma_1 = np.ones(N)  # equally distributed weights
@@ -202,6 +203,11 @@ if __name__ == "__main__":
     plot_utils.show_norm_of_total_gradient(ax, grad_centr, max_iter, semilogy=True, label="Centralized Aggregative Tracking")
     plot_utils.show_norm_of_total_gradient(ax, total_grad_distr, max_iter, semilogy=True, label="Distributed Aggregative Tracking")
 
+    # ax = axes[2]
+    # plot_utils.show_cost_evolution(ax, ss_distr[:,:,0], max_iter,semilogy=False, label="Distributed Aggregative Trackgin - vv")
+    # plot_utils.show_consensus_error(ax, N, zz_centr, semilogy=False, label="Consensus Error Centralized")
+    # plot_utils.show_norm_of_total_gradient(ax, total_grad_distr, max_iter, semilogy=True, label="Distributed Aggregative Tracking")
+
     plot_utils.show_and_wait(fig)
 
     fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
@@ -209,3 +215,8 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
     animation.animation(ax, zz_distr, target_pos, adj)
+
+    # fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
+    # animation.animation(ax, vv_distr, target_pos, adj)
+
+    # print(f"vv_distr[450:max_iter]: {vv_distr[450:max_iter]}")
