@@ -18,7 +18,7 @@ def draw_communication_graph(ax, zz, adj):
 
     for ii in range(NN):
         for jj in range(NN):
-            if adj[ii, jj] & (jj > ii): # if there is an egde and plot only one "side"
+            if adj[ii, jj] > 0 & (jj > ii): # is it an egde? plot only one "side"
                 communication_plot = ax.plot(
                     [zz[ii, 0], zz[jj, 0]],
                     [zz[ii, 1], zz[jj, 1]],
