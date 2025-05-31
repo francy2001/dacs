@@ -40,6 +40,7 @@ def safety_controller(u_ref, adj, zz, agent_index, alpha):
     
     # Parameters
     gamma = 2/alpha  # Safety margin
+    # gamma = 40
     delta = 0.01  # safety distance
     # delta = d_min - 2 * alpha * v_max * eta  # safety distance, d_min is the minimum distance between agents, eta is a small perturbation to ensure safety
     # delta = 2 * alpha * v_max
@@ -183,8 +184,8 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             # [ zz update ]
             nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
             u_ref = nabla_1 + np.eye(d) @ vv[k,i]
-            # u, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)  # Ensure safety with respect to neighbors
-            zz[k+1, i] = zz[k, i] - alpha * u_ref
+            u, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)  # Ensure safety with respect to neighbors
+            zz[k+1, i] = zz[k, i] - alpha * u
 
             # [ ss update ]
             # ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
@@ -203,7 +204,7 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             vv[k+1, i] = vv_consensus + vv_local_innovation
 
             total_cost[k] += cost
-            total_grad[k] += u_ref
+            total_grad[k] += u
     
     return total_cost, total_grad, zz, ss, vv
 
