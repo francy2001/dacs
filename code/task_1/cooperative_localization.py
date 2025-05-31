@@ -39,6 +39,7 @@ def cost_fn(zz, dd, pp):
     for tau in range(Nt):
         grad[tau] = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
 
+    # NOTE: this works but it changes the algorithms and the convergence rate guarantees
     # Normalization of the gradient due to the exploding gradient
     # epsilon = 1e-8  # avoid division by zero
     # for tau in range(Nt):
@@ -51,22 +52,25 @@ def cost_fn(zz, dd, pp):
 
     return cost, grad
 
-# generate positions
-d = 2
-# robot positions
+# [ generate positions ]
+# TODO: generate not overlapping positions (cfr: Feistel network for a discretized spawn map)
+d = 2           # positions are in R^2
+dd = (Nt, d)    # state dimension
+
 robot_pos = np.random.rand(N, d) * 10
-# TODO: posizioni che non si sovrappongono (guarda: rete di Feistel)
 print("Robot Positions: {}\tShape: {}".format(robot_pos, robot_pos.shape))
-# target positions
+
 target_pos = np.random.rand(Nt, d) * 10
 print("Target Positions: {}\tShape: {}".format(target_pos, target_pos.shape))
-# generate distances
+
+# [ calculate distances ]
 distances = np.zeros((N, Nt))
 for i in range(N):
     for j in range(Nt):
         distances[i,j] = np.linalg.norm(robot_pos[i] - target_pos[j])
 print("Distances: {}\tShape: {}".format(distances, distances.shape))
-# generate noisy distances
+
+# [ noisy distances ]
 noise = np.random.normal(0, 0.1, distances.shape)
 noisy_distances = distances + noise
 print("Noisy Distances: {}".format(noisy_distances))
@@ -84,29 +88,12 @@ plot_utils.show_and_wait(fig)
 # |   DISTRIBUTED GRADIENT TRACKING   |
 # -------------------------------------
 ## chosing alpha
-#
-# alphas = np.logspace(-4, -3, num=10) --> to have a set of possible values and chose the best one
-#
-# alpha = 1e-4 --> 3000 iterazioni arriva a poco più di 1e-9
-# alpha = 0.0001291549665014884 --> 3000 iterazioni arriva a poco più di 1e-12
-# alpha = 0.0001668100537200059 --> 3000 iterazioni arriva a poco più di 1e-17
-# alpha = 0.00021544346900318845 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
-# alpha = 0.0002782559402207126 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
-# alpha = 0.0003593813663804626 --> 3000 iterazioni arriva a poco più di 1e-21 e si stabilizza (best value!!!)
-# alpha = 0.0004661588769516728 --> esplode
-
-alpha = 0.0003593813663804626    
-
-# two states
-z = np.zeros((max_iter, N, Nt, d)) # indeces: [time, who, which target, position-component]
-s = np.zeros((max_iter, N, Nt, d))
+alpha = 0.0003
 
 # init z
+# TODO: educated guess? maybe choose the starting position of the target 
+# on a sphere of radius noisy_distances[i] centered in robot_pos[i].
 z_init = np.random.normal(size=(N, Nt, d))
-z[0] = z_init
-print(f"z_init: {z_init}")
-print(f"z_init shape: {z_init.shape}")
-
 
 # define ell_i
 cost_functions = []
@@ -127,60 +114,57 @@ for i in range(N):
 # -------------------
 # |   CENTRALIZED   | (Heavy-Ball method)
 # -------------------
-# sum of the cost functions
+# sum of the cost functions, no need to use N (= number of agents)
 
-def centralized_cost_fn(zz):
-    total_cost = 0
-    total_grad = np.zeros(shape=(Nt, d))
-    for i in range(N):
-        c, g = cost_functions[i](zz)
-        total_cost += c
-        total_grad += g
+def centralized_gradient_method(max_iter, dd, z_init, cost_functions):
+    # pdf: [ Optimization Basics ]
+    # slide: [ 26/27 ] - "Accelerated gradient method: the heavy-ball method"
+    # -----------------------------
+    # |     HEAVY BALL METHOD     |
+    # -----------------------------
+    # successive costs of "hb" i.e. heavy ball gradient method
+    alpha1 = 0.0 # if == 0, it's the classic gradient method
+    alpha2 = alpha
+    alpha3 = 0.0
 
-    return total_cost, total_grad
+    def centralized_cost_fn(zz):
+        total_cost = 0
+        total_grad = np.zeros(shape=(dd)) # (Nt, d)
+        for i in range(N):
+            c, g = cost_functions[i](zz)
+            total_cost += c
+            total_grad += g
 
-
-# two states
-z_hb = np.zeros((max_iter, Nt, d)) # indeces: [time, which target, position-component]
-xi_hb = np.zeros((max_iter, Nt, d))
-
-v = np.zeros((max_iter, Nt, d))
-y = np.zeros((max_iter, Nt, d))
-
-# successive costs of "hb" i.e. heavy ball gradient method
-cost_hb = np.zeros((max_iter))
-grad_hb = np.zeros((max_iter, Nt, d))
-
-z_init_hb = np.mean(z_init, axis=0) # centralized mean of the random z_init
-z_hb[0] = z_init_hb
-xi_hb[0] = z_init_hb
-
-alpha1 = 0.0 # if == 0, it's the classic gradient method
-alpha2 = alpha
-alpha3 = 0.0
-
-# pdf: [ Optimization Basics ]
-# slide: [ 26/27 ] - "Accelerated gradient method: the heavy-ball method"
-# -----------------------------
-# |     HEAVY BALL METHOD     |
-# -----------------------------
-for k in range(max_iter - 1):
-    v[k] = (1 + alpha3) * z_hb[k] - alpha3 * xi_hb[k]
-    cost_hb[k], grad_hb[k] = centralized_cost_fn(v[k])
-
-    y[k] = -alpha2 * grad_hb[k]
+        return total_cost, total_grad
     
-    z_hb[k + 1] = (1 + alpha1) * z_hb[k] - alpha1 * xi_hb[k] + y[k]
-    xi_hb[k + 1] = z_hb[k]
+    # two states
+    zz = np.zeros((max_iter, *dd)) # indeces: [time, which target, position-component]
+    xi = np.zeros((max_iter, *dd))
+
+    vv = np.zeros((max_iter, *dd))
+    yy = np.zeros((max_iter, *dd))
+
+    cost = np.zeros((max_iter))
+    grad = np.zeros((max_iter, *dd))
+
+    z_init_hb = np.mean(z_init, axis=0) # centralized mean of the random z_init
+    zz[0] = z_init_hb
+    xi[0] = z_init_hb
+
+    for k in range(max_iter - 1):
+        vv[k] = (1 + alpha3) * zz[k] - alpha3 * xi[k]
+        cost[k], grad[k] = centralized_cost_fn(vv[k])
+
+        yy[k] = -alpha2 * grad[k]
+        
+        zz[k + 1] = (1 + alpha1) * zz[k] - alpha1 * xi[k] + yy[k]
+        xi[k + 1] = zz[k]
+    return cost, grad, zz, xi, vv, yy
+
+# [ run the centralized gradient method ]
+cost_hb, grad_hb, zz_hb, _, _, _ = centralized_gradient_method(max_iter, dd, z_init, cost_functions)
 
 # -----------------------------------------------------------------
-
-# init s
-for i in range(N):
-    _, grad = cost_functions[i](z[0, i])
-    s[0, i] = grad
-    # print(f"s[0, {i}]: {s[0, i]}")
-    # print(f"s[0, {i}].shape: {s[0, i].shape}")
 
 # general case of a graph with birkhoff-von-neumann weights
 graph, weighted_adj = graph_utils.create_graph_birkhoff_von_neumann(N, 5)
@@ -191,7 +175,8 @@ plot_utils.show_graph_and_adj_matrix(fig, axs, graph, weighted_adj)
 plot_utils.show_and_wait(fig)
 
 # run the gradient tracking method
-cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
+dd = (Nt, d)
+cost, grad, zz, ss = gt.gradient_tracking(max_iter, N, dd, z_init, weighted_adj, cost_functions, alpha)
 
 fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=3)
 
@@ -217,17 +202,15 @@ plot_utils.show_and_wait(fig)
 # -------------------------
 # |      SIMULATIONS      |
 # -------------------------
-simulation = True
+run_simulations = True
 p_ER = 0.65
 
-if simulation:
+if run_simulations:
     print("Simulations...")
 
     for graph_type in graph_utils.GraphType:
-        # TODO: for each one do the comparison with the centralized version
-        args = {}
-
         # prepare args
+        args = {}
         if graph_type == graph_utils.GraphType.ERDOS_RENYI:
             args = {
                 'edge_probability': p_ER,
@@ -237,21 +220,28 @@ if simulation:
         # create graph and show it
         graph, weighted_adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_type, args)
         
-        fig, axs = plt.subplots(figsize=(12, 8), nrows=2, ncols=2)
+        fig, axs = plt.subplots(figsize=(7, 7), nrows=2, ncols=2)
         title = f"Graph Type = {graph_type}"
         fig.suptitle(title)
         fig.canvas.manager.set_window_title(title)
 
         plot_utils.show_graph_and_adj_matrix(fig, axs[0], graph, weighted_adj)
         
-        # run gradient tracking with the previously defined cost functions
-        # TODO: is it right to reuse the same z and s?
-        cost, grad, zz, ss = gt.gradient_tracking(N, Nt, d, z, s, weighted_adj, cost_functions, alpha)
+        # [ run centralized ]
+        cost_hb, grad_hb, zz_hb, _, _, _ = centralized_gradient_method(max_iter, dd, z_init, cost_functions)
+        
+        # [ run distributed ]
+        cost, grad, zz, ss = gt.gradient_tracking(max_iter, N, dd, z_init, weighted_adj, cost_functions, alpha)
 
         total_grad = [grad[k].flatten() for k in range(max_iter)]
-        plot_utils.show_cost_evolution(axs[1][0], cost, max_iter, semilogy=True)
-        plot_utils.show_norm_of_total_gradient(axs[1][1], total_grad, max_iter, semilogy=True)
-        
+        plot_utils.show_cost_evolution(axs[1][0], cost, max_iter, semilogy=False, label="Distributed (GT)")
+        plot_utils.show_cost_evolution(axs[1][0], cost_hb, max_iter, semilogy=False, label="Centralized (HB)")
+
+        total_grad = [grad[k].flatten() for k in range(max_iter)]
+        total_grad_hb = [grad_hb[k].flatten() for k in range(max_iter)]
+        plot_utils.show_norm_of_total_gradient(axs[1][1], total_grad, max_iter, semilogy=True, label="Distributed (GT)")
+        plot_utils.show_norm_of_total_gradient(axs[1][1], total_grad_hb, max_iter, semilogy=True, label="Centralized (HB)")
+
         plot_utils.show_and_wait(fig)
 
 

@@ -11,8 +11,8 @@ from utils import graph_utils, plot_utils
 seed = 48
 np.random.seed(seed)
 
-max_iter = 1500
-simulation = True
+max_iter = 1000
+run_simulations = False
 
 def __random_rotation_matrix(N):
     # Step 1: Generate a random N x N matrix
@@ -34,11 +34,32 @@ def quadratic_cost_fn(zz, QQ, rr):
     grad = QQ @ zz + rr
     return cost, grad
 
-def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
-    max_iter = zz.shape[0]
+def gradient_tracking(max_iter, NN, dd: tuple, zz_init, weighted_adj, cost_functions, alpha):
+    """
+    Gradient tracking.
+    
+    Parameters:
+    ----------
+        dd: tuple
+            for multidimensional state, e.g. dd=(Nt, d), each agents has a state containing Nt positions in R^d, one for each target
+    
+    """
+
+    # Task 1.1: (max_iter, NN, d)     --> [time, who, position-component]
+    # Task 1.2: (max_iter, NN, Nt, d) --> [time, who, which target, position-component]
+    zz = np.zeros((max_iter, NN, *dd))
+    ss = np.zeros((max_iter, NN, *dd))
+
+    # init z
+    zz[0] = zz_init
+
+    # init s
+    for i in range(NN):
+        _, grad = cost_functions[i](zz[0, i])
+        ss[0, i] = grad
+
     cost = np.zeros((max_iter))
-    grad = np.zeros((max_iter, Nt, d))
-    grad = grad.squeeze()
+    grad = np.zeros((max_iter, *dd))
 
     for k in range(max_iter - 1):
         # print(f"ss[{k}]: {ss[k]}")
@@ -51,23 +72,18 @@ def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
             # print(f"ss[k,i].shape: {ss[k,i].shape}")
             # print(f"weighted_adj[i].T.shape: {weighted_adj[i].T.shape}")
 
-            # Move the agent-axis in the last index such that we have (Nt,d,N)@(N,1)-->(Nt,d,1)
+            # NOTE: we have a zz[k].shape: (N, *state_dim), we would like to multiply with a (N,) vector
+            # Let's move the agent-axis in the last index such that we have: (*state_dim, N)@(N,1)-->(*state_dim,1)
+            # If state_dim is only a tuple containing (d,) then it's equivalent to take the transpose.
             zz_k_T = np.moveaxis(zz[k], 0, -1)
             # print(f"zz_k_T : {zz_k_T}")
             # print(f"zz[k].T : {zz[k].T}")
-            # print(f"np.transpose(zz[k], axes=[1,2,0]): {np.transpose(zz[k], axes=[1,2,0])}")
 
-            # zz[k+1, i] = zz[k].T @ weighted_adj[i].T - alpha * ss[k, i]
-            # TODO: maybe reversed? zz[k+1, i] = (weighted_adj[i] @ zz[k]).T - alpha * ss[k, i]
-            mul = zz_k_T @ weighted_adj[i].T
-            mul = mul.squeeze()
-            zz[k+1, i] = mul - alpha * ss[k, i]
+            zz[k+1, i] = zz_k_T @ weighted_adj[i].T - alpha * ss[k, i]
 
             # Move the agent-axis in the last index such that we have (Nt,d,N)@(N,1)-->(Nt,d,1)
             ss_k_T = np.moveaxis(ss[k], 0, -1)
-            # consensus = ss[k].T @ weighted_adj[i].T
             consensus = ss_k_T @ weighted_adj[i].T
-            consensus = consensus.squeeze()
             
             cost_k_i, grad_k_i = cost_functions[i](zz[k, i])
             _, grad_k_plus_1_i = cost_functions[i](zz[k+1, i])
@@ -86,7 +102,6 @@ def gradient_tracking(NN, Nt, d, zz, ss, weighted_adj, cost_functions, alpha):
 if __name__ == "__main__":
     # TODO: parametri a linea di comando
     NN = 10     # number of agents
-    Nt = 1
     d = 2       # dimension of the state
     p_ER = 0.65 
 
@@ -125,20 +140,6 @@ if __name__ == "__main__":
     # -------------------------------------
     alpha = 0.05
 
-    # two states
-    z = np.zeros((max_iter, NN, d)) # indeces: [time, who, state-component]
-    s = np.zeros((max_iter, NN, d))
-
-    # init z
-    z_init = np.random.normal(size=(NN, d))
-    z[0] = z_init
-    # print(f"z_init: {z_init}")
-
-    # init s
-    for i in range(NN):
-        _, grad = cost_functions[i](z[0, i])
-        s[0, i] = grad
-
     # create graph
     args = {
         'edge_probability': p_ER,
@@ -152,7 +153,9 @@ if __name__ == "__main__":
     plot_utils.show_and_wait(fig)
 
     # run gradient tracking
-    cost, grad, zz, ss = gradient_tracking(NN, Nt, d, z, s, weighted_adj, cost_functions, alpha)
+    dd = (d,)
+    zz_init = np.random.normal(size=(NN, d))
+    cost, grad, zz, ss = gradient_tracking(max_iter, NN, dd, zz_init, weighted_adj, cost_functions, alpha)
     
     def show_plots(semilogy):
         fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=4)
@@ -161,14 +164,14 @@ if __name__ == "__main__":
         fig.canvas.manager.set_window_title(title)
         plot_utils.show_cost_evolution(axes[0], cost, max_iter, semilogy, cost_opt)
         plot_utils.show_optimal_cost_error(axes[1], cost, cost_opt, max_iter, semilogy)
-        plot_utils.show_consensus_error(axes[2], NN, z, max_iter, semilogy)
+        plot_utils.show_consensus_error(axes[2], NN, zz, max_iter, semilogy)
         plot_utils.show_norm_of_total_gradient(axes[3], grad, max_iter, semilogy)
         plot_utils.show_and_wait(fig)
 
-    show_plots(semilogy=False)
+    # show_plots(semilogy=False)
     show_plots(semilogy=True)
 
-    if simulation:
+    if run_simulations:
         for graph_type in graph_utils.GraphType:
             # prepare args
             args = {}
@@ -188,8 +191,8 @@ if __name__ == "__main__":
 
             plot_utils.show_graph_and_adj_matrix(fig, axs[0], graph, weighted_adj)
             
-            # run gradient tracking with previously defined cost_functions
-            cost, grad, zz, ss = gradient_tracking(NN, Nt, d, z, s, weighted_adj, cost_functions, alpha)
+            # run gradient tracking with previously defined zz_init and cost_functions
+            cost, grad, zz, ss = gradient_tracking(max_iter, NN, dd, zz_init, weighted_adj, cost_functions, alpha)
 
             plot_utils.show_cost_evolution(axs[1][0], cost, max_iter, semilogy=True, cost_opt=cost_opt)
             plot_utils.show_norm_of_total_gradient(axs[1][1], grad, max_iter, semilogy=True)
