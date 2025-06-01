@@ -16,7 +16,28 @@ np.random.seed(seed)
 # TODO: check vincolo che N >> Nt
 Nt = 3
 N = 3 * Nt
-max_iter = 3000
+max_iter = 6000
+
+def spectral_alpha(distances, robot_pos, z_init, weighted_adj):
+    # alpha based on the spectral gap of the weighted adjacency matrix
+    D = np.max(distances)            # distanza massima iniziale
+    # supponiamo che i z_init siano uniformi in [0,10]^2, mentre p_i in [0,10]^2
+    R = np.max([np.linalg.norm(robot_pos[i] - z0_tau) 
+                for i in range(N) for z0_tau in z_init.mean(axis=0)])  
+    # oppure prendo semplicemente R = 10 (se so che tutto è in [0,10]).
+    # print(f"D = {D}, R = {R}")
+    L_estimated = N * Nt * (4 * D**2 + 12 * R**2)
+    print(f"L_estimated = {L_estimated}")
+
+    eigs = np.linalg.eigvals(weighted_adj)
+    eigs_sorted = np.sort_complex(eigs)  # ordina per valore assoluto
+    lambda_2 = eigs_sorted[-2].real      # secondo autovalore più grande (reale)
+    gap = 1 - lambda_2
+
+    constant = 30
+    alpha = constant * gap / L_estimated
+
+    return alpha
 
 def cost_fn(zz, dd, pp):
 
@@ -37,7 +58,8 @@ def cost_fn(zz, dd, pp):
     grad = np.zeros((Nt, d))
     
     for tau in range(Nt):
-        grad[tau] = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+        # grad[tau] = -4 * ((dd[tau]**2 - norms[tau]**2) * (zz[tau] - pp))
+        grad[tau] = -4 * D[tau] * (zz[tau] - pp)
 
     # NOTE: this works but it changes the algorithms and the convergence rate guarantees
     # Normalization of the gradient due to the exploding gradient
@@ -88,7 +110,11 @@ plot_utils.show_and_wait(fig)
 # |   DISTRIBUTED GRADIENT TRACKING   |
 # -------------------------------------
 ## chosing alpha
-alpha = 0.0003
+# alpha = 0.0003
+alpha_init = 0.0003
+alpha_step = 0.000050
+growth_rate = 1.1
+alpha = alpha_init - (alpha_step * growth_rate**Nt)
 
 # init z
 # TODO: educated guess? maybe choose the starting position of the target 
@@ -124,8 +150,11 @@ def centralized_gradient_method(max_iter, dd, z_init, cost_functions):
     # -----------------------------
     # successive costs of "hb" i.e. heavy ball gradient method
     alpha1 = 0.0 # if == 0, it's the classic gradient method
+    # alpha2 = 0.0002
     alpha2 = alpha
     alpha3 = 0.0
+
+    # print(f"Running gradient tracking with alpha = {alpha2:.6f}")
 
     def centralized_cost_fn(zz):
         total_cost = 0
@@ -167,15 +196,19 @@ cost_hb, grad_hb, zz_hb, _, _, _ = centralized_gradient_method(max_iter, dd, z_i
 # -----------------------------------------------------------------
 
 # general case of a graph with birkhoff-von-neumann weights
-graph, weighted_adj = graph_utils.create_graph_birkhoff_von_neumann(N, 5)
+# graph, weighted_adj = graph_utils.create_graph_birkhoff_von_neumann(N, 5)
+graph, weighted_adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.COMPLETE, {'edge_probability': 0.62, 'seed': seed})
 
 # show graph and weighted adjacency matrix
 fig, axs = plt.subplots(figsize=(6,3), nrows=1, ncols=2)
 plot_utils.show_graph_and_adj_matrix(fig, axs, graph, weighted_adj)
 plot_utils.show_and_wait(fig)
 
+
+
 # run the gradient tracking method
 dd = (Nt, d)
+print(f"Running gradient tracking with alpha = {alpha:.6f}")
 cost, grad, zz, ss = gt.gradient_tracking(max_iter, N, dd, z_init, weighted_adj, cost_functions, alpha)
 
 fig, axes = plt.subplots(figsize=(15, 10), nrows=1, ncols=3)
