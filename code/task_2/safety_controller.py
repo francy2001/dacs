@@ -15,11 +15,56 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from utils import graph_utils, plot_utils, animation
 
-seed = 42
-np.random.seed(seed)
+# seed = 42
+# np.random.seed(seed)
 
 # implement of the aggregative tracking algorithm
 max_iter = 500
+
+def constraint_satisfaction(zz, adj):
+    """
+    Check if the constraints are satisfied for the given positions zz.
+    
+    Parameters:
+    zz : np.ndarray
+        The positions of the agents.
+    AA : np.ndarray
+        The constraint matrix.
+    bb : np.ndarray
+        The constraint vector.
+    
+    Returns:
+    bool
+        True if the constraints are satisfied, False otherwise.
+    """
+
+    # Parameters
+    # gamma = 20  # Safety margin
+    gamma = 40
+    delta = 1
+    
+    for i in range(zz.shape[0]):
+
+        # Creation of the matrix A
+        neighbors = np.where(adj[i] > 0)[0]  # Get indices of neighbors
+        neighbors = neighbors[neighbors != i]  # Exclude the agent itself
+        # print(f"Neighbors: {neighbors}")
+        A = np.zeros((len(neighbors), zz.shape[1]))
+        b = np.zeros(len(neighbors))
+        # print(f"A shape: {A.shape}")
+        # print(f"zz[i]: {zz[agent_index]}")
+        for j in range(A.shape[0]):
+            diff = (zz[i] - zz[neighbors[j]])  # Difference between the agent's position and the neighbor's position
+            # print(f"Difference for agent {agent_index} and neighbor {neighbors[j]}: {diff}")
+            A[j] = -2 * diff.T
+            b[j] = 0.5 * gamma *(np.linalg.norm(diff)**2 - delta**2)
+            # b[j] = gamma *(np.linalg.norm(diff)**2 - delta**2)
+
+        if np.all(A @ zz[i] > b):
+            print(f"Constraints not satisfied for agent {i}: A @ zz[i] = {A @ zz[i]}, b = {b}")
+            return False
+
+    return True  # Check if the constraints are satisfied for all agents
 
 def safety_controller(u_ref, adj, zz, agent_index, alpha):
     """
@@ -39,9 +84,10 @@ def safety_controller(u_ref, adj, zz, agent_index, alpha):
     """
     
     # Parameters
-    gamma = 2/alpha  # Safety margin
-    # gamma = 40
-    delta = 0.01  # safety distance
+    # gamma = 2/alpha  # Safety margin
+    gamma = 40
+    delta = 1
+    # delta = 0.01  # safety distance
     # delta = d_min - 2 * alpha * v_max * eta  # safety distance, d_min is the minimum distance between agents, eta is a small perturbation to ensure safety
     # delta = 2 * alpha * v_max
     print(f"gamma: {gamma}, delta: {delta}")
@@ -71,7 +117,7 @@ def safety_controller(u_ref, adj, zz, agent_index, alpha):
     minimum, cost = min_cvx_solver(QQ, qq, A, b)
     print(f"Minimum: {minimum}, Cost: {cost}")
     
-    return minimum, cost
+    return A, b, minimum, cost
 
 
 def min_cvx_solver(QQ, qq, AA, bb):
@@ -96,6 +142,38 @@ def min_cvx_solver(QQ, qq, AA, bb):
     problem = cvx.Problem(cvx.Minimize(cost), constraint)
     problem.solve()
     return zz.value, problem.value
+
+def projection(xx, z_neighbors):
+    """
+        Projection using CVXPY
+
+        min_{z ∈ R^d}  ||z - xx||^2 
+      s.t.         ||z - z_neighbors[j]|| ≥ delta,  ∀ j
+    
+    """
+    delta = 3
+
+    zz = cvx.Variable(xx.shape)
+
+    cost = cvx.sum_squares(zz - xx)
+    # Costruiamo i vincoli ||z_var - z_j|| >= delta
+    constraints = []
+    for j in range(z_neighbors.shape[0]):
+        z_j = z_neighbors[j]
+        constraints.append(- cvx.norm(zz - z_j) <= - delta)
+        
+    problem = cvx.Problem(cvx.Minimize(cost), constraints)
+    problem.solve()
+    # solver_to_try = [cvx.ECOS, cvx.SCS, cvx.OSQP]
+    # for solver in solver_to_try:
+    #     try:
+    #         problem.solve(solver=solver)
+    #         if problem.status in ['optimal', 'optimal_inaccurate']:
+    #             return zz.value
+    #     except:
+    #         continue
+
+    return zz.value
 
 
 def cost_fn(zz, rr, barycenter, gamma_1, gamma_2):
@@ -184,8 +262,17 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             # [ zz update ]
             nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
             u_ref = nabla_1 + np.eye(d) @ vv[k,i]
-            u, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)  # Ensure safety with respect to neighbors
+            AA, bb, u, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)  # Ensure safety with respect to neighbors
+            
             zz[k+1, i] = zz[k, i] - alpha * u
+            # zz_temp = zz[k,i] - alpha * u
+
+            # neighbors_idx = np.where(adj[i] > 0)[0]
+            # neighbors_idx = neighbors_idx[neighbors_idx != i]
+            # z_neighbors = zz[k, neighbors_idx]
+
+            # zz_proj = projection(zz_temp, z_neighbors)
+            # zz[k+1, i] = zz_proj
 
             # [ ss update ]
             # ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
@@ -210,24 +297,28 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
 
 if __name__ == "__main__":
     # setup 
-    N = 3  # number of agents
+    N = 10  # number of agents
     d = 2  # dimension of the state space
 
     # generate N target positions
-    # target_pos = np.random.rand(N, d) * 10
+    target_pos = np.random.rand(N, d) * 50
     # target_pos = np.array([[10,10],[10,8], [10,6], [10,4], [10,2]])  # fixed initial positions for the agents
-    target_pos = np.array([[2,9],[2,8], [2,10]])  # fixed initial positions for the agents
+    # target_pos = np.array([[2,9],[2,8], [2,10]])  # fixed initial positions for the agents
     
     print("Target Positions: {}\tShape: {}".format(target_pos, target_pos.shape))
     
-    # generate initial positions for the agents
-    # z_init = np.random.normal(size=(N, d)) * 10
-    # z_init = np.array([[0,2],[0,4], [0,6], [0,8], [0,10]])  # fixed initial positions for the agents
-    z_init = np.array([[0,8],[0,10],[0,6]])  # fixed initial positions for the agents
-    print("Initial Positions: {}\tShape: {}".format(z_init, z_init.shape))
-
     # args = {'edge_probability': 0.65, 'seed': seed}
     graph, adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.COMPLETE)
+    
+    # generate initial positions for the agents
+    z_init = np.random.normal(size=(N, d)) * 50
+    # z_init = np.array([[0,2],[0,4], [0,6], [0,8], [0,10]])  # fixed initial positions for the agents
+    # z_init = np.array([[0,8],[0,10],[0,6]])  # fixed initial positions for the agents
+
+    while not constraint_satisfaction(z_init, adj):
+        print(f"z_init: {z_init} does not satisfy the constraints, generating a new one...")
+        z_init = np.random.normal(size=(N, d)) * 50
+
 
     # define ell_i
     gamma_1 = np.ones(N)  # equally distributed weights
