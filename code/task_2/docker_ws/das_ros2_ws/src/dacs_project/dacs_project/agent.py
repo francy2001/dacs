@@ -21,22 +21,36 @@ class Agent(Node):
         self.max_iter = self.get_parameter("max_iter").value
         
         _zz_init = self.get_parameter("zz_init").value
-        self.zz_init = np.array(_zz_init)
+        zz_init = np.array(_zz_init)
 
         _adj_i = self.get_parameter("adj_i").value
         self.adj_i = np.array(_adj_i)
 
-        self.dd = self.zz_init.shape[0]
+        _target_pos = self.get_parameter("target_pos").value
+        self.target_pos = np.array(_target_pos)
 
+        self.gamma_1 = self.get_parameter("gamma_1").value
+        self.gamma_2 = self.get_parameter("gamma_2").value
+
+        self.alpha = self.get_parameter("alpha").value
+        
+        # needed for the 1/N coeffiecient in the \nabla_1 computation
+        self.NN = self.get_parameter("N").value
+
+        self.dd = zz_init.shape[0]
 
         def sanity_check_args():
             self.get_logger().info(f"({type(self.agent_id)}) self.agent_id: {self.agent_id:d}")
             self.get_logger().info(f"({type(self.neighbours)}) self.neighbours: {self.neighbours}")
-            self.get_logger().info(f"({type(self.zz_init)}) self.zz_init: {self.zz_init}")
+            self.get_logger().info(f"({type(zz_init)}) zz_init: {zz_init}")
             self.get_logger().info(f"({type(self.adj_i)}) self.adj_i: {self.adj_i}")
+            self.get_logger().info(f"({type(self.target_pos)}) self.dd: {self.target_pos}")
+            self.get_logger().info(f"({type(self.gamma_1)}) self.gamma_1: {self.gamma_1}")
+            self.get_logger().info(f"({type(self.gamma_2)}) self.gamma_2: {self.gamma_2}")
+            self.get_logger().info(f"({type(self.NN)}) self.NN: {self.NN}")
             self.get_logger().info(f"({type(self.dd)}) self.dd: {self.dd}")
             
-        sanity_check_args()
+        # sanity_check_args()
 
         # [ create a publisher ]
         # you're changing the namespace, so you need a "/"
@@ -69,22 +83,74 @@ class Agent(Node):
         
         self.kk = 0
 
-    def aggregative_tracking(self, zz_neighbours):
-        # [ my neighbour weighting row ]
-        self.adj_i
+        # [ three states ]
+        # self.zz_i: positions of the agents
+        # self.ss_i: proxy of \sigma(x^k)
+        # self.vv_i: proxy of \frac{1}{N}\sum_{j=1}^{N}\nabla_2\ell_J(z_j^k, \sigma(z^k))
 
+        # [ state initialization ]
+        self.zz_i = zz_init
+        self.ss_i = self.zz_i # \phi_{i}(z) is the identity function
+        self.vv_i = self.gradient_computation(self.zz_i, self.ss_i, 'second')
+
+    def cost_function(self):
+        """
+        Compute the cost function and its gradient for the aggregative tracking problem.
+        """
+        barycenter = self.ss_i # use the proxy
+        target_norm = np.linalg.norm(self.zz_i - self.target_pos)
+        barycenter_norm = np.linalg.norm(self.zz_i - barycenter)
+        cost = self.gamma_1 * target_norm**2 + self.gamma_2 * barycenter_norm**2
+        return cost
+
+
+    def gradient_computation(self, zz_i, ss_i, type):
+        # use the proxy
+        barycenter = ss_i
+
+        if type == 'first':
+            # derivate of the cost function with respet to zz
+            grad = 2 * self.gamma_1 * (zz_i - self.target_pos) + 2 * self.gamma_2 * (1 - 1/self.NN) * (zz_i - barycenter)
+        elif type == 'second':
+            # derivate of the cost function with respect to sigma(z)
+            grad = -2 * self.gamma_2 * (zz_i - barycenter)
+        else:
+            raise ValueError("Invalid type. Use 'first' or 'second'.")
+        return grad
+
+    def aggregative_tracking(self, zz_neighbors, ss_neighbors, vv_neighbors):
         self.get_logger().info(f"[k:{self.kk}] Aggregative Tracking Update Step")
+
+        cost = self.cost_function()
         
-        cost = 0
-        grad = np.zeros(shape=(self.dd))
-        zz = np.zeros(shape=(self.dd))
-        ss = np.zeros(shape=(self.dd))
-        vv = np.zeros(shape=(self.dd))
+        # [ zz update ]
+        nabla_1 = self.gradient_computation(self.zz_i, self.ss_i, type='first')
+        grad = nabla_1 + np.eye(self.dd) @ self.vv_i
+        zz_i_k_plus_1 = self.zz_i - self.alpha * grad
+
+        # [ ss update ]
+        ss_consensus = zz_neighbors.T @ self.adj_i.T
+        # ss_consensus = ss_consensus.squeeze()
+        ss_local_innovation = zz_i_k_plus_1 - self.zz_i
+        ss_i_k_plus_1 = ss_consensus + ss_local_innovation
+
+        # [ vv update ]
+        vv_consensus = vv_neighbors.T @ self.adj_i.T
+        # vv_consensus = vv_consensus.squeeze()
+        nabla2_k = self.gradient_computation(self.zz_i, self.ss_i, type='second')
+        nabla2_k_plus_1 = self.gradient_computation(zz_i_k_plus_1, ss_i_k_plus_1, type='second')
+        vv_local_innovation = nabla2_k_plus_1 - nabla2_k
+        vv_i_k_plus_1 = vv_consensus + vv_local_innovation
+
+        # TODO: how to do we compute the total gradient?
+        # total_cost[k] += cost
+        # total_grad[k] += grad
         
-        return (cost, grad, zz, ss, vv)
+        
+        return cost, grad, zz_i_k_plus_1, ss_i_k_plus_1, vv_i_k_plus_1
 
     def listener_callback(self, msg):
-        self.get_logger().info(f"[k:{self.kk}] I heard: {msg.data}")
+        # self.get_logger().info(f"[k:{self.kk}] I heard: {msg.data}")
         j = int(msg.data[0])                # extract the index of the source
         msg_j = msg.data[1:]                # extract the remaining part of the message
                                             # in the 0 position there will be k (*NOTE*)
@@ -99,18 +165,16 @@ class Agent(Node):
         # when publishing:
         #      - msg.data[0]   : agent_id
         #      - msg.data[1]   : k
-        #      - msg.data[2:]  : state components, d=2
+        #      - msg.data[2:]  : zz | ss | vv
         # when consuming:      # NOTE: agent id have already been removed
         #      - msg.data[0]   : k
-        #      - msg.data[1:]  : state components, d=2
+        #      - msg.data[1:]  : zz | ss | vv
 
         if self.kk == 0:
-            self.zz_i = self.zz_init
-
             # TODO: https://roboticsbackend.com/ros2-create-custom-message/
             msg = MsgFloat()
-            msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i)]
-            
+            msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
+
             self.publisher.publish(msg)
             self.get_logger().info(f"[k:{self.kk}] Publishing: {msg.data}")
             self.kk += 1
@@ -128,22 +192,29 @@ class Agent(Node):
             
             # [ read the messages ]
             zz_neighbors = np.zeros(shape=(len(self.neighbours), self.dd))
+            ss_neighbors = np.zeros(shape=(len(self.neighbours), self.dd))
+            vv_neighbors = np.zeros(shape=(len(self.neighbours), self.dd))
+
             for idx, j in enumerate(self.neighbours):
                 msg_j = self.received_data[j].pop(0)
                 # self.get_logger().info(f"msg_{j}: {msg_j}")
                 # kk_j = int(msg_j[0])
-                zz_neighbors[idx] = np.array(msg_j[1:])
+                zz_neighbors[idx] = np.array(msg_j[1            :  1+self.dd])   # 1st slice
+                ss_neighbors[idx] = np.array(msg_j[1+self.dd    :  1+2*self.dd]) # 2nd slice
+                vv_neighbors[idx] = np.array(msg_j[1+2*self.dd  : ])             # 3rd slice
 
-            self.get_logger().info(f"zz_neighbors: {zz_neighbors}")
+            # self.get_logger().info(f"zz_neighbors: {zz_neighbors}")
+            # self.get_logger().info(f"ss_neighbors: {ss_neighbors}")
+            # self.get_logger().info(f"vv_neighbors: {vv_neighbors}")
 
             # [ compute the update ]
             #         zz_i_k_plus_1
-            (cost, grad, zz, ss, vv) = self.aggregative_tracking(zz_neighbors)
+            cost, grad, self.zz_i, self.ss_i, self.vv_i = self.aggregative_tracking(zz_neighbors, ss_neighbors, vv_neighbors)
             
 
             # [ publish on my own topic ]
             msg = MsgFloat()
-            msg.data = [float(self.agent_id), float(self.kk), *list(self.zz)]
+            msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
             self.publisher.publish(msg)
             self.get_logger().info(f"[k:{self.kk}] Publishing: {msg.data}")
 
