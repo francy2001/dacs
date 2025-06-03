@@ -4,6 +4,7 @@ from std_msgs.msg import String
 from std_msgs.msg import Float64MultiArray as MsgFloat
 import numpy as np
 from time import sleep
+import traceback
 
 # https://ros2-tutorial.readthedocs.io/en/latest/python_node_explained.html
 
@@ -54,9 +55,14 @@ class Agent(Node):
 
         # [ create a publisher ]
         # you're changing the namespace, so you need a "/"
-        self.publisher = self.create_publisher(
+        self.publisher_state = self.create_publisher(
             MsgFloat, 
-            f"/topic_agent_{self.agent_id}",
+            f"/topic_agent_{self.agent_id}_state",
+            10
+        )
+        self.publisher_plot_info = self.create_publisher(
+            MsgFloat, 
+            f"/topic_agent_{self.agent_id}_plot_info",
             10
         )
         
@@ -74,7 +80,7 @@ class Agent(Node):
             self.my_subscriptions.append(
                 self.create_subscription(
                     MsgFloat, 
-                    f"/topic_agent_{j}",
+                    f"/topic_agent_{j}_state",
                     # lambda msg: self.listener_callback(msg, j=j), # 2nd level function to pass also the source
                     self.listener_callback,
                     10
@@ -118,7 +124,7 @@ class Agent(Node):
             raise ValueError("Invalid type. Use 'first' or 'second'.")
         return grad
 
-    def aggregative_tracking(self, zz_neighbors, ss_neighbors, vv_neighbors):
+    def aggregative_tracking(self, ss_neighbors, vv_neighbors):
         self.get_logger().info(f"[k:{self.kk}] Aggregative Tracking Update Step")
 
         cost = self.cost_function()
@@ -129,7 +135,7 @@ class Agent(Node):
         zz_i_k_plus_1 = self.zz_i - self.alpha * grad
 
         # [ ss update ]
-        ss_consensus = zz_neighbors.T @ self.adj_i.T
+        ss_consensus = ss_neighbors.T @ self.adj_i.T
         # ss_consensus = ss_consensus.squeeze()
         ss_local_innovation = zz_i_k_plus_1 - self.zz_i
         ss_i_k_plus_1 = ss_consensus + ss_local_innovation
@@ -175,19 +181,21 @@ class Agent(Node):
             msg = MsgFloat()
             msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
 
-            self.publisher.publish(msg)
-            self.get_logger().info(f"[k:{self.kk}] Publishing: {msg.data}")
+            self.publisher_state.publish(msg)
+            self.get_logger().info(f"[k:{self.kk}] Publishing (state): {msg.data}")
             self.kk += 1
 
-
         else:
+            for j in self.neighbours:
+                if len(self.received_data[j]) == 0:
+                    self.get_logger().info(f"Early exit. self.received_data[{j}] was empty!")
+                    return
+
             # [ check if received data are synchronous at k-1 ]
-            timestamp = [
-                (self.kk - 1 == self.received_data[j][0][0]) for j in self.neighbours
-            ]
+            data_available = [(self.kk - 1 == self.received_data[j][0][0]) for j in self.neighbours]
             
             # [ if we are NOT synchronous, wait the next time callback ]
-            if not all(timestamp):
+            if not all(data_available):
                 return
             
             # [ read the messages ]
@@ -209,17 +217,19 @@ class Agent(Node):
 
             # [ compute the update ]
             #         zz_i_k_plus_1
-            cost, grad, self.zz_i, self.ss_i, self.vv_i = self.aggregative_tracking(zz_neighbors, ss_neighbors, vv_neighbors)
-            
+            cost, grad, self.zz_i, self.ss_i, self.vv_i = self.aggregative_tracking(ss_neighbors, vv_neighbors)
 
             # [ publish on my own topic ]
             msg = MsgFloat()
             msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
-            self.publisher.publish(msg)
-            self.get_logger().info(f"[k:{self.kk}] Publishing: {msg.data}")
+            self.get_logger().info(f"[k:{self.kk}] Publishing (state): {msg.data}")
+            self.publisher_state.publish(msg)
 
             # [ publish to viz. ]
-            # ...
+            msg = MsgFloat()
+            msg.data = [float(self.agent_id), float(self.kk), float(cost), *list(grad)]
+            self.get_logger().info(f"[k:{self.kk}] Publishing (plot_info): {msg.data}")
+            self.publisher_plot_info.publish(msg)
 
             self.kk += 1
 
@@ -247,7 +257,7 @@ def main(args=None):
     except SystemExit:
         agent.get_logger().info("Terminated by SystemExit")
     except Exception as e:
-        print(e)
+        print(traceback.format_exc())
     finally:
         agent.destroy_node()
         rclpy.shutdown()
