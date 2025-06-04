@@ -15,11 +15,29 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from utils import graph_utils, plot_utils, animation
 
-# seed = 42
-# np.random.seed(seed)
+seed = 38
+np.random.seed(seed)
 
 # implement of the aggregative tracking algorithm
-max_iter = 500
+max_iter = 100
+delta = 3
+gamma = 20
+
+def neighborhood_distances(zz, agent_index, radius=3*delta):
+
+    distances = []
+    print(f"Position of all the agents: {zz}")
+    neighbors = np.delete(zz, agent_index)  # Exclude the agent itself
+    print(f"Positions of the neighbors: {neighbors}")
+        
+    for j in range(len(neighbors)):
+        distance = np.linalg.norm(zz[agent_index] - neighbors[j])
+        if distance <= radius:
+            distances[j] = distance
+            print(f"Agent {agent_index} is within radius {radius} of Agent {j}, distance: {distance}")
+
+    return distances
+
 
 def constraint_satisfaction(zz, adj):
     """
@@ -39,9 +57,9 @@ def constraint_satisfaction(zz, adj):
     """
 
     # Parameters
-    # gamma = 20  # Safety margin
-    gamma = 40
-    delta = 1
+      # Safety margin
+    # gamma = 40
+    
     
     for i in range(zz.shape[0]):
 
@@ -83,29 +101,22 @@ def safety_controller(u_ref, adj, zz, agent_index, alpha):
         The safe control input.
     """
     
-    # Parameters
-    # gamma = 2/alpha  # Safety margin
-    gamma = 40
-    delta = 1
-    # delta = 0.01  # safety distance
-    # delta = d_min - 2 * alpha * v_max * eta  # safety distance, d_min is the minimum distance between agents, eta is a small perturbation to ensure safety
-    # delta = 2 * alpha * v_max
-    print(f"gamma: {gamma}, delta: {delta}")
-
     # Creation of the matrix A
     neighbors = np.where(adj > 0)[0]  # Get indices of neighbors
     neighbors = neighbors[neighbors != agent_index]  # Exclude the agent itself
-    # print(f"Neighbors: {neighbors}")
+    print(f"Neighbors: {neighbors}")
     A = np.zeros((len(neighbors), u_ref.shape[0]))
     b = np.zeros(len(neighbors))
     # print(f"A shape: {A.shape}")
     # print(f"zz[i]: {zz[agent_index]}")
     for j in range(A.shape[0]):
+        print(f"zz[agent_index]: {zz[agent_index]}, zz[neighbors[j]]: {zz[neighbors[j]]}")
         diff = (zz[agent_index] - zz[neighbors[j]])  # Difference between the agent's position and the neighbor's position
-        # print(f"Difference for agent {agent_index} and neighbor {neighbors[j]}: {diff}")
+        print(f"Difference for agent {agent_index} and neighbor {neighbors[j]}: {diff}")
         A[j] = -2 * diff.T
         b[j] = 0.5 * gamma *(np.linalg.norm(diff)**2 - delta**2)
         # b[j] = gamma *(np.linalg.norm(diff)**2 - delta**2)
+    print(f"A: {A}, b: {b}")
 
     # print(f"A: {A}")
     # print(f"b: {b}")
@@ -117,7 +128,7 @@ def safety_controller(u_ref, adj, zz, agent_index, alpha):
     minimum, cost = min_cvx_solver(QQ, qq, A, b)
     print(f"Minimum: {minimum}, Cost: {cost}")
     
-    return A, b, minimum, cost
+    return minimum, cost
 
 
 def min_cvx_solver(QQ, qq, AA, bb):
@@ -135,45 +146,24 @@ def min_cvx_solver(QQ, qq, AA, bb):
 
     # Cost function
     cost = 0.5* cvx.quad_form(zz,QQ) + qq.T @ zz
+    # cost = cvx.sum_squares(zz - u_ref)  # Quadratic cost function    
 
     # Constraint Az <= b
     constraint = [AA@zz <= bb]
 
     problem = cvx.Problem(cvx.Minimize(cost), constraint)
-    problem.solve()
+    # problem.solve()
+    solvers_to_try = ['OSQP', 'ECOS', 'CVXOPT', 'SCS']
+    for solver in solvers_to_try:
+        try:
+            problem.solve(solver=solver)
+            if problem.status in ['optimal', 'optimal_inaccurate']:
+                print(f"Solver {solver} succeeded.")
+                return zz.value, problem.value
+        except Exception as e:
+            continue
     return zz.value, problem.value
 
-def projection(xx, z_neighbors):
-    """
-        Projection using CVXPY
-
-        min_{z ∈ R^d}  ||z - xx||^2 
-      s.t.         ||z - z_neighbors[j]|| ≥ delta,  ∀ j
-    
-    """
-    delta = 3
-
-    zz = cvx.Variable(xx.shape)
-
-    cost = cvx.sum_squares(zz - xx)
-    # Costruiamo i vincoli ||z_var - z_j|| >= delta
-    constraints = []
-    for j in range(z_neighbors.shape[0]):
-        z_j = z_neighbors[j]
-        constraints.append(- cvx.norm(zz - z_j) <= - delta)
-        
-    problem = cvx.Problem(cvx.Minimize(cost), constraints)
-    problem.solve()
-    # solver_to_try = [cvx.ECOS, cvx.SCS, cvx.OSQP]
-    # for solver in solver_to_try:
-    #     try:
-    #         problem.solve(solver=solver)
-    #         if problem.status in ['optimal', 'optimal_inaccurate']:
-    #             return zz.value
-    #     except:
-    #         continue
-
-    return zz.value
 
 
 def cost_fn(zz, rr, barycenter, gamma_1, gamma_2):
@@ -234,11 +224,12 @@ def gradient_computation(zz, rr, barycenter, gamma_1, gamma_2, N, type='first'):
     # print(f"grad shape: {grad.shape}")
     return grad
 
-def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_functions, gamma_1, gamma_2):
+def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_functions, gamma_1, gamma_2, delta_t=0.1):
     # 3 states
     zz = np.zeros((max_iter, N, d))  # positions of the agents
     ss = np.zeros((max_iter, N, d))  # proxy of \sigma(x^k)
     vv = np.zeros((max_iter, N, d))  # proxy of \frac{1}{N}\sum_{j=1}^{N}\nabla_2\ell_J(z_j^k, \sigma(z^k))
+    xx = np.zeros((max_iter, N, d))  # positions of the agents at the next iteration
 
     total_cost = np.zeros(max_iter)
     total_grad = np.zeros((max_iter, d))
@@ -252,6 +243,7 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
     ss[0] = z_init # \phi_{i}(z) is the identity function
     for i in range(N):
         vv[0, i] = gradient_computation(zz[0,i], target_pos[i], ss[0, i], gamma_1[i], gamma_2[i], N, type='second')
+        xx[0, i], _ = safety_controller(zz[0,i], adj[i], zz[0], i, alpha) # single integrator controller
 
     for k in range(max_iter-1):
 
@@ -261,19 +253,20 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             
             # [ zz update ]
             nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
-            u_ref = nabla_1 + np.eye(d) @ vv[k,i]
-            AA, bb, u, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)  # Ensure safety with respect to neighbors
+            grad = nabla_1 + np.eye(d) @ vv[k,i]
+            z_temp = zz[k, i] - alpha * grad
+
+            total_cost[k] += cost
+            total_grad[k] += grad
+
+            # Safety controller
+            u_ref = z_temp.copy()
+            u_safe, _ = safety_controller(u_ref, adj[i], xx[k], i, alpha)
+            # u_safe, _ = safety_controller(u_ref, adj[i], zz[k], i, alpha)
+            xx[k+1, i] = xx[k, i] + delta_t * (u_safe - xx[k,i])  # Update the position with the safe control input
+            print(f"u_safe: {u_safe}, xx[k+1, i]: {xx[k+1, i]}")
+            zz[k+1, i] = xx[k+1, i]  # Update zz with the safe control input
             
-            zz[k+1, i] = zz[k, i] - alpha * u
-            # zz_temp = zz[k,i] - alpha * u
-
-            # neighbors_idx = np.where(adj[i] > 0)[0]
-            # neighbors_idx = neighbors_idx[neighbors_idx != i]
-            # z_neighbors = zz[k, neighbors_idx]
-
-            # zz_proj = projection(zz_temp, z_neighbors)
-            # zz[k+1, i] = zz_proj
-
             # [ ss update ]
             # ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
             ss_consensus = ss[k].T @ adj[i].T
@@ -290,19 +283,17 @@ def aggregative_tracking(alpha, target_pos, z_init, adj, max_iter, N, d, cost_fu
             vv_local_innovation = nabla2_k_plus_1 - nabla2_k
             vv[k+1, i] = vv_consensus + vv_local_innovation
 
-            total_cost[k] += cost
-            total_grad[k] += u
     
     return total_cost, total_grad, zz, ss, vv
 
 if __name__ == "__main__":
     # setup 
-    N = 10  # number of agents
+    N = 2  # number of agents
     d = 2  # dimension of the state space
 
     # generate N target positions
-    target_pos = np.random.rand(N, d) * 50
-    # target_pos = np.array([[10,10],[10,8], [10,6], [10,4], [10,2]])  # fixed initial positions for the agents
+    target_pos = np.random.rand(N, d) * 10
+    # target_pos = np.array([[10,12],[11,2]])  # fixed initial positions for the agents
     # target_pos = np.array([[2,9],[2,8], [2,10]])  # fixed initial positions for the agents
     
     print("Target Positions: {}\tShape: {}".format(target_pos, target_pos.shape))
@@ -311,14 +302,15 @@ if __name__ == "__main__":
     graph, adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.COMPLETE)
     
     # generate initial positions for the agents
-    z_init = np.random.normal(size=(N, d)) * 50
-    # z_init = np.array([[0,2],[0,4], [0,6], [0,8], [0,10]])  # fixed initial positions for the agents
+    z_init = np.random.rand(N, d) * 10
     # z_init = np.array([[0,8],[0,10],[0,6]])  # fixed initial positions for the agents
 
     while not constraint_satisfaction(z_init, adj):
         print(f"z_init: {z_init} does not satisfy the constraints, generating a new one...")
-        z_init = np.random.normal(size=(N, d)) * 50
+        z_init = np.random.rand(N, d) * 10
 
+    # z_init = np.array([[0,2], [0,12]])  # fixed initial positions for the agents
+    print(f"z_init: {z_init} satisfies the constraints")
 
     # define ell_i
     gamma_1 = np.ones(N)  # equally distributed weights
