@@ -9,11 +9,11 @@ from utils import graph_utils
 seed = 38
 np.random.seed(seed)
 
-N = 3
+N = 5
 d = 2
 alpha = 0.05
 
-max_iter = 100
+max_iter = 500
 
 # [ generate initial positions for the agents and respective targets ]
 zz_init = np.random.uniform(low=-5, high=5, size=(N, d))

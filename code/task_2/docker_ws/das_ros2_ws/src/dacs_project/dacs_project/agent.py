@@ -125,7 +125,7 @@ class Agent(Node):
         return grad
 
     def aggregative_tracking(self, ss_neighbors, vv_neighbors):
-        self.get_logger().info(f"[k:{self.kk}] Aggregative Tracking Update Step")
+        # self.get_logger().info(f"[k:{self.kk}] Aggregative Tracking Update Step")
 
         cost = self.cost_function()
         
@@ -182,13 +182,13 @@ class Agent(Node):
             msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
 
             self.publisher_state.publish(msg)
-            self.get_logger().info(f"[k:{self.kk}] Publishing (state): {msg.data}")
+            # self.get_logger().info(f"[k:{self.kk}] Publishing (state)") # : {msg.data}")
             self.kk += 1
 
         else:
             for j in self.neighbours:
                 if len(self.received_data[j]) == 0:
-                    self.get_logger().info(f"Early exit. self.received_data[{j}] was empty!")
+                    # self.get_logger().info(f"Early exit. self.received_data[{j}] was empty!")
                     return
 
             # [ check if received data are synchronous at k-1 ]
@@ -222,13 +222,13 @@ class Agent(Node):
             # [ publish on my own topic ]
             msg = MsgFloat()
             msg.data = [float(self.agent_id), float(self.kk), *list(self.zz_i), *list(self.ss_i), *list(self.vv_i)]
-            self.get_logger().info(f"[k:{self.kk}] Publishing (state): {msg.data}")
+            # self.get_logger().info(f"[k:{self.kk}] Publishing (state)") #: {msg.data}")
             self.publisher_state.publish(msg)
 
             # [ publish to viz. ]
             msg = MsgFloat()
             msg.data = [float(self.agent_id), float(self.kk), float(cost), *list(grad)]
-            self.get_logger().info(f"[k:{self.kk}] Publishing (plot_info): {msg.data}")
+            # self.get_logger().info(f"[k:{self.kk}] Publishing (plot_info)") # : {msg.data}")
             self.publisher_plot_info.publish(msg)
 
             self.kk += 1
@@ -248,7 +248,7 @@ def main(args=None):
     agent = Agent()
     try:
         agent.get_logger().info(f"Agent ({agent.agent_id}) created. GO!")
-        sleep(30)
+        sleep(5)
         rclpy.spin(agent)
     except KeyboardInterrupt:
         agent.get_logger().info("Terminated by KeyboardInterrupt")

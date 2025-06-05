@@ -163,12 +163,13 @@ class Visualizer(Node):
 
             # [ publish barycenter ]
             barycenter = barycenter / self.NN
-            self.publish_marker_to_viz(self.publisher_barycenter, barycenter, self.NN, f"barycenter", type=Marker.CUBE, scale=0.25)
+            self.publish_marker_to_viz(self.publisher_barycenter, barycenter, self.NN, f"barycenter", type=Marker.CUBE, scale = 0.2)
+            
+            if self.kk_states % 50 == 0:
+                self.get_logger().info(f"k={self.kk_states:>5} / {self.max_iter:>5}")
             self.kk_states += 1
 
         # [ check max_iter limit ]
-        self.get_logger().info(f"self.kk_plot_info: {self.kk_plot_info}")
-        self.get_logger().info(f"self.kk_states: {self.kk_states}")
         if self.kk_plot_info >= self.max_iter and self.kk_states >= self.max_iter:
             self.get_logger().info(f"Maximum iteration reached. \n Bye!")
             raise SystemExit()
@@ -177,29 +178,29 @@ class Visualizer(Node):
     def listener_callback_plot_info(self, msg):
         i = msg.data[0]
         msg_i = msg.data[1:]
-        self.get_logger().info(f"listener_callback_plot_info: {i} {msg_i}")
+        # self.get_logger().info(f"listener_callback_plot_info: {i} {msg_i}")
         self.buffer_agent_plot_info[i].append(msg_i)
 
     def listener_callback_state(self, msg):
         i = int(msg.data[0])
         msg_i = msg.data[1:]
-        self.get_logger().info(f"listener_callback_state: {i} {msg_i}")
+        # self.get_logger().info(f"listener_callback_state: {i} {msg_i}")
         self.buffer_agent_state[i].append(msg_i)
 
     def publish_plot_info_to_viz(self, total_cost, total_grad):
         # [ publish info on the topic ]
         msg = Float64()
         msg.data = float(total_cost)
-        self.get_logger().info(f"Publishing (/visualization_topic_cost): {total_cost}")
+        # self.get_logger().info(f"Publishing (/visualization_topic_cost): {total_cost}")
         self.publisher_cost.publish(msg)
 
         msg = Float64()
         total_grad_norm = np.linalg.norm(total_grad)
         msg.data = float(total_grad_norm)
-        self.get_logger().info(f"Publishing (/visualization_topic_norm_grad): {total_grad_norm}")
+        # self.get_logger().info(f"Publishing (/visualization_topic_norm_grad): {total_grad_norm}")
         self.publisher_norm_grad.publish(msg)
 
-    def publish_marker_to_viz(self, pub, pos, idx, ns, type=Marker.SPHERE, scale=0.75):
+    def publish_marker_to_viz(self, pub, pos, idx, ns, type=Marker.SPHERE, scale=0.45):
         # [ prepare the message ]
         marker = Marker()
             
@@ -220,9 +221,9 @@ class Visualizer(Node):
         marker.id = idx
         marker.type = type
         marker.action = Marker.ADD
-        marker.scale.x = 0.75
-        marker.scale.y = 0.75
-        marker.scale.z = 0.75
+        marker.scale.x = scale
+        marker.scale.y = scale
+        marker.scale.z = scale
 
         # [ publish the message ]
         pub.publish(marker)
