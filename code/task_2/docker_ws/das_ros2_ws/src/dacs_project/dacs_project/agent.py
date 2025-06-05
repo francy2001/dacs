@@ -67,7 +67,7 @@ class Agent(Node):
         )
         
         # [ use a timer ]  // to check if I can consume/publish a message
-        time_period = 1 # second
+        time_period = 0.1 # second
         self.timer = self.create_timer(time_period, callback=self.timer_callback)
 
         # [ create subscriptions ]
@@ -234,7 +234,7 @@ class Agent(Node):
             self.kk += 1
 
             # [ check max_iter limit ]
-            if self.kk > self.max_iter:
+            if self.kk >= self.max_iter:
                 self.get_logger().info(f"[k:{self.kk}] Maximum iteration reached. \n Bye!")
                 raise SystemExit()
 
@@ -247,10 +247,8 @@ def main(args=None):
     rclpy.init(args=args)
     agent = Agent()
     try:
-        agent.get_logger().info(f"Agent ({agent.agent_id}) created")
-        sleep(1)
-        agent.get_logger().info("GO!")
-
+        agent.get_logger().info(f"Agent ({agent.agent_id}) created. GO!")
+        sleep(30)
         rclpy.spin(agent)
     except KeyboardInterrupt:
         agent.get_logger().info("Terminated by KeyboardInterrupt")
