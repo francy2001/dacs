@@ -223,10 +223,10 @@ def aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1
 
                 delta_t=0.1
                 z_temp = zz[k, i] - alpha * grad
-                u_ref = z_temp.copy()
+                u_ref = z_temp
                 neighbors_distances = neighborhood_distances(xx[k], i)  # Get distances of neighbors    
                 u_safe = safety_controller(u_ref, neighbors_distances)  # Apply the safety controller to the reference control input
-
+                
                 if u_safe is None:
                     zz[k+1, i] = xx[k, i]  # If the safe control input is None, stop in the current position
                 else:

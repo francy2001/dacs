@@ -5,7 +5,7 @@ import networkx as nx
 import sys
 import os
 
-from aggregative_tracking import *
+from aggregative_tracking import aggregative_tracking, cost_fn 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -16,8 +16,9 @@ np.random.seed(seed)
 
 # Global Parameters
 max_iter = 1000
-delta = 1
-gamma = 20
+delta = 0.5
+world_dim = 10  # dimension of the world, i.e., the maximum value of the coordinates of the agents
+gamma = 20+10*delta
 
 def neighborhood_distances(zz, agent_index, radius=3*delta):
     """
@@ -47,7 +48,7 @@ def neighborhood_distances(zz, agent_index, radius=3*delta):
         distance = (zz[agent_index] - neighbors[j])
         if np.linalg.norm(distance) <= radius:
             distances.append(distance) # Append the distance of the neighbor to the list
-            print(f"Agent {agent_index} is within radius {radius} of Agent {j}, distance: {distance}")
+            # print(f"Agent {agent_index} is within radius {radius} of Agent {j}, distance: {np.linalg.norm(distance)}")
 
     return np.array(distances)
 
@@ -83,9 +84,10 @@ def safety_controller(u_ref, neighbors_dist):
         diff = neighbors_dist[j]  # Difference between the agent's position and the neighbor's position
         A[j] = -2 * diff.T
         b[j] = 0.5 * gamma *(np.linalg.norm(diff)**2 - delta**2)
-    # print(f"A: {A}, b: {b}")       
+    print(f"A: {A}, b: {b}")       
 
     # Check if the constraints are satisfied, if so, we don't need to solve the QP problem, we can just return u_ref
+    print(f"Checking constraints for u_ref: {u_ref}")
     if np.all(A @ u_ref <= b):
         print(f"Constraints already satisfied for u_ref: {u_ref}")
         return u_ref
@@ -136,14 +138,13 @@ if __name__ == "__main__":
     # setup 
     N = 4  # number of agents
     d = 2  # dimension of the state space
-    world_dim = 10  # dimension of the world, i.e., the maximum value of the coordinates of the agents
 
     # generate N target positions
     target_pos = np.random.rand(N, d) * world_dim
     
     # generate initial positions for the agents
     z_init = np.random.rand(N, d) * world_dim
-
+    
     # generate a communications graph    
     args = {'edge_probability': 0.65, 'seed': 38}
     graph, adj = graph_utils.create_graph_with_metropolis_hastings_weights(N, graph_utils.GraphType.ERDOS_RENYI, args)
@@ -178,4 +179,4 @@ if __name__ == "__main__":
     plot_utils.show_and_wait(fig)
 
     fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
-    animation.animation(ax, zz_distr, target_pos, adj)
+    animation.animation(ax, zz_distr, target_pos, adj, safety_distance=delta)
