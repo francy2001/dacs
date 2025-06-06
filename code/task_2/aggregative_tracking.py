@@ -107,8 +107,7 @@ def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_po
     ValueError
         If the shapes of `z_init` and `target_pos` do not match the specified ...
     """
-    # TODO: document the code! let stay uniform with numpy in-code doc: https://github.com/numpy/numpy/blob/main/numpy/matlib.py#L111
-
+    
     (max_iter, N, d) = dim
     zz = np.zeros((max_iter, N, d))  # state: positions of the agents
     cost = np.zeros(max_iter)
@@ -138,7 +137,7 @@ def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_po
         for i in range(N):
             gradient_sum = np.zeros(d) 
             for j in range(N):
-                gradient_sum += gradient_computation(zz[k,j], target_pos[j], barycenter, gamma_1=gamma_1[j], gamma_2=gamma_2[j], N=N, type='second')
+                gradient_sum += gradient_computation(zz[k,j], target_pos[j], barycenter, gamma_2=gamma_2[j], N=N, type='second')
             nabla_1 = gradient_computation(zz[k,i], target_pos[i], barycenter, gamma_1=gamma_1[i], gamma_2=gamma_2[i], N=N, type='first')
             grad_i = nabla_1 + np.eye(d) @ gradient_sum
             zz[k+1, i] = zz[k,i] - alpha * grad_i
