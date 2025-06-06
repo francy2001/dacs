@@ -11,6 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ("share/" + package_name, glob("launch_folder/dacs_parametric_launch.py")), # add launch.py
+        ("share/" + package_name, glob("resource/rviz_config.rviz")),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,6 +21,9 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        "console_scripts": ["agent = dacs_project.agent:main"], # add entry point
+        "console_scripts": [  # add entry point
+            "agent = dacs_project.agent:main",
+            "visualizer = dacs_project.visualizer:main"
+        ],
     },
 )
