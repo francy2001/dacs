@@ -4,61 +4,68 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils import graph_utils, plot_utils, animation
 
-seed = 42
+seed = 38
 np.random.seed(seed)
 
+# Global Parameters
 max_iter = 450
 
 def cost_fn(zz, rr, barycenter, gamma_1, gamma_2):
     """
-    Compute the cost function and its gradient for the aggregative tracking problem.
+    Compute the cost function for the aggregative tracking problem.
     
-    Parameters:
+    Parameters
+    ----------
     zz : np.ndarray
-        The positions of the agents at the current iteration.
+        The positions of the i-th agents at the current iteration.
     rr : np.ndarray
-        The target positions of the agents.
-    
-    Returns:
+        The target positions of the i-th agents.
+    barycenter : np.ndarray
+        The barycenter of the agents' positions.
+    gamma_1 : float
+        Weight for the first term of the cost function (distance to target).
+    gamma_2 : float
+        Weight for the second term of the cost function (distance to barycenter).        
+
+    Returns
+    -------
     cost : float
         The computed cost value.
-    grad : np.ndarray
-        The gradient of the cost function with respect to zz.
     """
-    # print(f"zz shape: {zz.shape}")
-    # print(f"rr shape: {rr.shape}")
-    # print(f"zz: {zz}")
-    # print(f"rr: {rr}")
     target_norm = np.linalg.norm(zz-rr)
-    # print(f"target_norm: {target_norm}")
-    # print(f"target_norm shape: {target_norm.shape}")
     barycenter_norm = np.linalg.norm(zz - barycenter)
-    # print(f"barycenter_norm: {barycenter_norm}")
-    # print(f"barycenter_norm shape: {barycenter_norm.shape}")
+
+    # print(f"Target_norm: {target_norm}, shape: {target_norm.shape}")
+    # print(f"barycenter_norm: {barycenter_norm}, shape: {barycenter_norm.shape}")
 
     cost = gamma_1 * target_norm**2 + gamma_2 * barycenter_norm**2
+
     return cost
 
 
 def aggregative_variable(zz): # barycenter of the agents' positions
     """
     Compute the aggregative variable (barycenter) of the agents' positions.
-    Parameters:
+    
+    Parameters
+    ----------
     zz : np.ndarray
         The positions of the agents.
-    Returns:
+    
+    Returns
+    -------
     barycenter : np.ndarray
         The barycenter of the agents' positions.
     """
     barycenter = np.mean(zz, axis=0)  # Compute the mean of the agents' positions
     return barycenter
 
-## TODO: passare solo gamma_1 o gamma_2 in basa al tipo di gradiente
-def gradient_computation(zz, rr, barycenter, gamma_1, gamma_2, N, type):
+def gradient_computation(zz, rr, barycenter, gamma_2, N, type, gamma_1=None):
     if type == 'first':
         # derivate of the cost function with respet to zz
         grad = 2 * gamma_1 * (zz - rr) + 2 * gamma_2 * (1 - 1/N) * (zz - barycenter)
@@ -71,23 +78,25 @@ def gradient_computation(zz, rr, barycenter, gamma_1, gamma_2, N, type):
 
 def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_pos: np.ndarray, dim: tuple, cost_functions, gamma_1, gamma_2):
     """
-    descr
+    Centralized Aggregative Tracking algorithm.
 
     Parameters
     ----------
     alpha : float
         Stepsize
-    
     z_init : numpy.ndarray
         A (N, d) array that contains the initial state of the agents.
-    
     target_pos : numpy.ndarray
         A (N, d) array that contains the personal known fixed targets for each agent i.
-    
     dim : tuple of int
         A tuple that contains (max_iter, N, d)
+    cost_functions : list of callable
+        A list of cost functions for each agent, where each function takes two arguments: the current position of the agent and the barycenter.
+    gamma_1 : numpy.ndarray
+        A (N,) array that contains the weights for the first term of the cost function for each agent.
+    gamma_2 : numpy.ndarray
+        A (N,) array that contains the weights for the second term of the cost function for each agent. 
         
-
     Returns
     -------
     numpy.ndarray
@@ -97,10 +106,6 @@ def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_po
     ------
     ValueError
         If the shapes of `z_init` and `target_pos` do not match the specified ...
-
-    Notes
-    -----
-    note
     """
     # TODO: document the code! let stay uniform with numpy in-code doc: https://github.com/numpy/numpy/blob/main/numpy/matlib.py#L111
 
@@ -133,8 +138,8 @@ def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_po
         for i in range(N):
             gradient_sum = np.zeros(d) 
             for j in range(N):
-                gradient_sum += gradient_computation(zz[k,j], target_pos[j], barycenter, gamma_1[j], gamma_2[j], N, type='second')
-            nabla_1 = gradient_computation(zz[k,i], target_pos[i], barycenter, gamma_1[i], gamma_2[i], N, type='first')
+                gradient_sum += gradient_computation(zz[k,j], target_pos[j], barycenter, gamma_1=gamma_1[j], gamma_2=gamma_2[j], N=N, type='second')
+            nabla_1 = gradient_computation(zz[k,i], target_pos[i], barycenter, gamma_1=gamma_1[i], gamma_2=gamma_2[i], N=N, type='first')
             grad_i = nabla_1 + np.eye(d) @ gradient_sum
             zz[k+1, i] = zz[k,i] - alpha * grad_i
             
@@ -142,59 +147,108 @@ def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_po
 
     return cost, grad, zz
 
-def aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj):
+def aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj, safety):
+
+    """ 
+    Distributed Aggregative Tracking algorithm.
+
+    Parameters
+    ----------
+    alpha : float
+        Stepsize
+    z_init : numpy.ndarray
+        A (N, d) array that contains the initial state of the agents.
+    target_pos : numpy.ndarray
+        A (N, d) array that contains the personal known fixed targets for each agent i.
+    dim : tuple of int
+        A tuple that contains (max_iter, N, d)
+    cost_functions : list of callable
+        A list of cost functions for each agent, where each function takes two arguments: the current position of the agent and the barycenter.
+    gamma_1 : numpy.ndarray
+        A (N,) array that contains the weights for the first term of the cost function for each agent.
+    gamma_2 : numpy.ndarray
+        A (N,) array that contains the weights for the second term of the cost function for each agent.
+    adj : numpy.ndarray
+        A (N, N) adjacency matrix representing the communication graph between the agents.
+    safety : bool
+        If True, the safety controller is applied to ensure that the agents' positions remain within a safe distance from each other.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - total_cost: numpy.ndarray
+            An array of shape (max_iter,) containing the total cost at each iteration.
+        - total_grad: numpy.ndarray
+            An array of shape (max_iter, d) containing the total gradient at each iteration.
+        - zz: numpy.ndarray
+            An array of shape (max_iter, N, d) containing the positions of the agents at each iteration.
+        - ss: numpy.ndarray
+            An array of shape (max_iter, N, d) containing the proxy of \sigma(x^k) at each iteration.
+        - vv: numpy.ndarray
+            An array of shape (max_iter, N, d) containing the proxy of \frac{1}{N}\sum_{j=1}^{N}\nabla_2\ell_J(z_j^k, \sigma(z^k)) at each iteration.   
+    """
+
+    from safety_controller import safety_controller, neighborhood_distances # safety_controller is imported to use the safety controller inside the function for circular import issues
+
     # 3 states
     (max_iter, N, d) = dim
     zz = np.zeros((max_iter, N, d))  # positions of the agents
     ss = np.zeros((max_iter, N, d))  # proxy of \sigma(x^k)
     vv = np.zeros((max_iter, N, d))  # proxy of \frac{1}{N}\sum_{j=1}^{N}\nabla_2\ell_J(z_j^k, \sigma(z^k))
+    xx = np.zeros((max_iter, N, d))  # single integrator of the agents' positions
 
     total_cost = np.zeros(max_iter)
     total_grad = np.zeros((max_iter, d))
 
-    # TODO: would be cool to generalize the phi(z) func, e.g. to a weighted barycenter (VIP node, maybe a local Access Point) 
-    # def phi(zz):
-    #     zz
-
     # Initialization
     zz[0] = z_init 
     ss[0] = z_init # \phi_{i}(z) is the identity function
+    xx[0] = z_init 
     for i in range(N):
-        vv[0, i] = gradient_computation(zz[0,i], target_pos[i], ss[0, i], gamma_1[i], gamma_2[i], N, type='second')
+        vv[0, i] = gradient_computation(zz[0,i], target_pos[i], ss[0, i], gamma_2=gamma_2[i], N=N, type='second')
 
     for k in range(max_iter-1):
         for i in range(N):
             # NOTE: usage of ss[k,i] instead of barycenter
             cost = cost_functions[i](zz[k,i], ss[k,i])
             
-            # TODO: would be cool to have a "proximity" communicatin graph, a time-varying adjacency matrix 
-            # in which the robot i can communicatate only with robots within a ball of a given radius dictated
-            # by the coverage range. In this case the second term of the cost function would be really significative!
-
             # [ zz update ]
-            nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='first')
+            nabla_1 = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1=gamma_1[i], gamma_2=gamma_2[i], N=N, type='first')
             grad = nabla_1 + np.eye(d) @ vv[k,i]
-            zz[k+1, i] = zz[k, i] - alpha * grad
-
-            # [ ss update ]
-            # ss_k_T = np.moveaxis(ss[k], 0, -1) # from (N, d) to (d, N)
-            ss_consensus = ss[k].T @ adj[i].T
-            # ss_consensus = ss_consensus.squeeze()
-            ss_local_innovation = zz[k+1, i] - zz[k, i]
-            ss[k+1, i] = ss_consensus + ss_local_innovation
-
-            # [ vv update ]
-            # vv_k_T = np.moveaxis(vv[k], 0, -1) # from (N, d) to (d, N)
-            vv_consensus = vv[k].T @ adj[i].T
-            # vv_consensus = vv_consensus.squeeze()
-            nabla2_k = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_1[i], gamma_2[i], N, type='second')
-            nabla2_k_plus_1 = gradient_computation(zz[k+1,i], target_pos[i], ss[k+1,i], gamma_1[i], gamma_2[i], N, type='second')
-            vv_local_innovation = nabla2_k_plus_1 - nabla2_k
-            vv[k+1, i] = vv_consensus + vv_local_innovation
 
             total_cost[k] += cost
             total_grad[k] += grad
     
+            if safety:      # Safety controller
+
+                delta_t=0.1
+                z_temp = zz[k, i] - alpha * grad
+                u_ref = z_temp.copy()
+                neighbors_distances = neighborhood_distances(xx[k], i)  # Get distances of neighbors    
+                u_safe = safety_controller(u_ref, neighbors_distances)  # Apply the safety controller to the reference control input
+
+                if u_safe is None:
+                    zz[k+1, i] = xx[k, i]  # If the safe control input is None, stop in the current position
+                else:
+                    xx[k+1, i] = xx[k, i] + delta_t * (u_safe - xx[k,i])  # Update the position with the safe control input
+                    zz[k+1, i] = xx[k+1, i]
+
+            else:
+                zz[k+1, i] = zz[k, i] - alpha * grad
+                
+            # [ ss update ]
+            ss_consensus = ss[k].T @ adj[i].T
+            ss_local_innovation = zz[k+1, i] - zz[k, i]
+            ss[k+1, i] = ss_consensus + ss_local_innovation
+
+            # [ vv update ]
+            vv_consensus = vv[k].T @ adj[i].T
+            nabla2_k = gradient_computation(zz[k,i], target_pos[i], ss[k,i], gamma_2=gamma_2[i], N=N, type='second')
+            nabla2_k_plus_1 = gradient_computation(zz[k+1,i], target_pos[i], ss[k+1,i], gamma_2=gamma_2[i], N=N, type='second')
+            vv_local_innovation = nabla2_k_plus_1 - nabla2_k
+            vv[k+1, i] = vv_consensus + vv_local_innovation
+
     return total_cost, total_grad, zz, ss, vv
 
 def __sim_aggregative_tracking(title, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type, args={}, vip_idx=None):
@@ -211,7 +265,7 @@ def __sim_aggregative_tracking(title, z_init, target_pos, dim, cost_functions, g
     cost_centr, grad_centr, zz_centr = centralized_aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2)
 
     # [ distriuted gradient tracking ]
-    res = aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj)
+    res = aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj, safety=False)
     (total_cost_distr, total_grad_distr, zz_distr, ss_distr, vv_distr) = res
 
     # [ plots ]
@@ -249,13 +303,11 @@ if __name__ == "__main__":
     d = 2  # dimension of the state space
 
     # generate N target positions
-    # target_pos = np.random.rand(N, d) * 50
-    target_pos = np.random.uniform(low=-25, high=25, size=(N, d))
+    target_pos = np.random.uniform(low=-10, high=10, size=(N, d))
     print("Target Positions: {}\tShape: {}".format(target_pos, target_pos.shape))
     
     # generate initial positions for the agents
-    # z_init = np.random.normal(size=(N, d)) * 50
-    z_init = np.random.uniform(low=-25, high=25, size=(N, d))
+    z_init = np.random.uniform(low=-10, high=10, size=(N, d))
     print("Initial Positions: {}\tShape: {}".format(z_init, z_init.shape))
 
     args = {'edge_probability': 0.65, 'seed': seed}
@@ -279,7 +331,7 @@ if __name__ == "__main__":
     # -----------------------
     # |     DISTRIBUTED     |
     # -----------------------
-    res = aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj)
+    res = aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj, safety=False)
     (total_cost_distr, total_grad_distr, zz_distr, ss_distr, vv_distr) = res
 
     # run simulations
