@@ -278,7 +278,7 @@ def __sim_aggregative_tracking(title, z_init, target_pos, dim, cost_functions, g
 
     # [ show centralized ]
     # fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
-    # animation.animation(ax, zz_centr, target_pos, vip_idx=vip_idx, title=f"{title} \n Distributed")
+    # animation.animation(ax, zz_centr, target_pos, vip_idx=vip_idx, title=f"{title} \n Centralized")
     
     # [ show distributed ]
     fig, ax = plt.subplots(figsize=(15, 10), nrows=1, ncols=1)
@@ -385,7 +385,7 @@ if __name__ == "__main__":
             gamma_2 = np.ones(N)
             # TODO: NOTE: with gamma1=0 the centralized diverges!!! it remains a small drift, so a steady-state error (?)
             gamma_1[vip_idx] = 0     # ignore the correspondent target
-            gamma_2[vip_idx] = 5     # stay close to the barycenter!
+            gamma_2[vip_idx] = 2     # stay close to the barycenter!
             cost_functions = []
             for i in range(N):
                 cost_functions.append(lambda zz, barycenter, i=i: cost_fn(zz, target_pos[i], barycenter, gamma_1[i], gamma_2[i]))
