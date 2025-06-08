@@ -29,7 +29,7 @@ def draw_communication_graph(ax, zz, adj):
                 )
     return communication_plot
     
-def draw_agents(ax, zz, adj, vip_idx=None):
+def draw_agents(ax, zz, adj, vip_idx=None, safety_distance=None):
     # zz: all the agents positions at the current iteration
     agents_plot = ax.plot(
         zz[:, 0], # all agents' component x
@@ -39,7 +39,8 @@ def draw_agents(ax, zz, adj, vip_idx=None):
         linestyle='none',
         fillstyle="full",
         color="tab:red",
-        label="Agents"
+        label="Agents",
+        zorder=2
     )
 
     if vip_idx is not None:
@@ -51,8 +52,15 @@ def draw_agents(ax, zz, adj, vip_idx=None):
             linestyle='none',
             fillstyle="full",
             color="tab:cyan",
-            label="VIP Agent"
+            label="VIP Agent",
+            zorder=3
+
         )
+    
+    if safety_distance is not None:
+        patches = [plt.Circle((x, y), safety_distance, color='r', alpha=0.75, zorder=1) for x,y in zz]
+        for p in patches:
+            ax.add_patch(p)
 
     plots = (agents_plot)
 
@@ -87,7 +95,7 @@ def draw_barycenter(ax, zz):
     return barycentre_plot
 
 
-def animation(ax, zz, target_pos, adj=None, wait_time=0.001, skip=1, vip_idx=None, title="Animation"):
+def animation(ax, zz, target_pos, adj=None, wait_time=0.001, skip=1, vip_idx=None, title="Animation", safety_distance=None):
     max_iter = zz.shape[0] # time horizon len
     axes_lim = (np.min(zz) - 1, np.max(zz) + 1)
     
@@ -104,7 +112,7 @@ def animation(ax, zz, target_pos, adj=None, wait_time=0.001, skip=1, vip_idx=Non
         traj = draw_trajectories(ax, zz)
         targ = draw_targets(ax, target_pos)
         bary = draw_barycenter(ax, zz[tt])
-        agen = draw_agents(ax, zz[tt], adj, vip_idx)
+        agen = draw_agents(ax, zz[tt], adj, vip_idx, safety_distance)
 
         # ax.legend([traj, targ, bary, agen], ["traj", "targ", "bary", "agen"])
         ax.legend(numpoints=1)
