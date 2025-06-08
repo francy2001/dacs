@@ -13,6 +13,16 @@ class GraphType(Enum):
     # RANDOM_REGULAR_EXPANDER = 6
 
 def metropolis_hastings_weights(graph):
+    """    
+    Computes the Metropolis-Hastings weights for a given graph.
+    
+    The weights are defined as follows:
+    - If there is an edge between nodes i and j, the weight W[i,j] is given by:
+      W[i,j] = 1 / (1 + max(d_i, d_j))
+      where d_i and d_j are the degrees of nodes i and j, respectively.
+    - The diagonal elements W[i,i] are set to 1 - sum(W[i,j]) for all j != i.
+
+    """
     N = graph.number_of_nodes()
     # A = nx.adjacency_matrix(graph).toarray()
     W = np.zeros(shape=(N, N), dtype='float64')
@@ -30,6 +40,9 @@ def metropolis_hastings_weights(graph):
     return W
 
 def create_graph_with_metropolis_hastings_weights(NN, graph_type, args={}):
+    """
+    Creates a graph with Metropolis-Hastings weights based on the specified graph type.
+    """
     ONES = np.ones((NN, NN))
     
     if graph_type == GraphType.ERDOS_RENYI:

@@ -76,9 +76,9 @@ def gradient_computation(zz, rr, barycenter, gamma_2, N, type, gamma_1=None):
         raise ValueError("Invalid type. Use 'first' or 'second'.")
     return grad
 
-def centralized_aggregative_tracking(alpha: float, z_init: np.ndarray, target_pos: np.ndarray, dim: tuple, cost_functions, gamma_1, gamma_2):
+def centralized_aggregative_method(alpha: float, z_init: np.ndarray, target_pos: np.ndarray, dim: tuple, cost_functions, gamma_1, gamma_2):
     """
-    Centralized Aggregative Tracking algorithm.
+    Centralized Aggregative algorithm.
 
     Parameters
     ----------
@@ -261,7 +261,7 @@ def __sim_aggregative_tracking(title, z_init, target_pos, dim, cost_functions, g
     plot_utils.show_graph_and_adj_matrix(fig, axs[0], graph, adj)
     
     # [ centralized gradient tracking ]
-    cost_centr, grad_centr, zz_centr = centralized_aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2)
+    cost_centr, grad_centr, zz_centr = centralized_aggregative_method(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2)
 
     # [ distriuted gradient tracking ]
     res = aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, adj, safety=False)
@@ -325,7 +325,7 @@ if __name__ == "__main__":
     # -----------------------
     # |     CENTRALIZED     |
     # -----------------------
-    cost_centr, grad_centr, zz_centr = centralized_aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2)
+    cost_centr, grad_centr, zz_centr = centralized_aggregative_method(alpha, z_init, target_pos, dim, cost_functions, gamma_1, gamma_2)
 
     # -----------------------
     # |     DISTRIBUTED     |
@@ -364,7 +364,7 @@ if __name__ == "__main__":
     # -------------------------
     # |      SIMULATIONS      |
     # -------------------------
-    simulation = False
+    simulation = True
 
     if simulation:
         print("Simulations...")
