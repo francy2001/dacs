@@ -369,6 +369,8 @@ if __name__ == "__main__":
     if simulation:
         print("Simulations...")
 
+        args = {'edge_probability': 0.65, 'seed': seed}
+
         # [ different graphs ]
         def sim_network_graphs():
             gamma_1 = np.ones(N)    # equally distributed weights
@@ -389,7 +391,7 @@ if __name__ == "__main__":
             cost_functions = []
             for i in range(N):
                 cost_functions.append(lambda zz, barycenter, i=i: cost_fn(zz, target_pos[i], barycenter, gamma_1[i], gamma_2[i]))
-            __sim_aggregative_tracking("VIP agent", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.COMPLETE, vip_idx=vip_idx)
+            __sim_aggregative_tracking("VIP agent", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.ERDOS_RENYI,args=args, vip_idx=vip_idx)
 
         # [ closer to targets ]
         def sim_closer_to_targets():
@@ -398,16 +400,16 @@ if __name__ == "__main__":
             cost_functions = []
             for i in range(N):
                 cost_functions.append(lambda zz, barycenter, i=i: cost_fn(zz, target_pos[i], barycenter, gamma_1[i], gamma_2[i]))
-            __sim_aggregative_tracking("Closer to targets", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.COMPLETE)
+            __sim_aggregative_tracking("Closer to targets", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.ERDOS_RENYI, args=args)
 
         # [ more team cohesion ]
         def sim_more_cohesion():
             gamma_1 = np.ones(N)
-            gamma_2 = np.ones(N) * 4
+            gamma_2 = np.ones(N) * 2
             cost_functions = []
             for i in range(N):
                 cost_functions.append(lambda zz, barycenter, i=i: cost_fn(zz, target_pos[i], barycenter, gamma_1[i], gamma_2[i]))
-            __sim_aggregative_tracking("Team Cohesion", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.COMPLETE)
+            __sim_aggregative_tracking("Team Cohesion", z_init, target_pos, dim, cost_functions, gamma_1, gamma_2, graph_type=graph_utils.GraphType.CYCLE)
         
         
         sim_network_graphs()
