@@ -32,7 +32,7 @@ This repository contains the implementation of two distributed optimization algo
 │       ├── animation.py
 │       ├── graph_utils.py
 │       └── plot_utils.py
-└── README.md
+└── README.md (recursive :P)
 ```
 
 ---
@@ -59,6 +59,7 @@ python cooperative_localization.py
 ```
 
 ### :robot: Task 2: Aggregative Tracking (ROS2)
+Run directly from `code/task_2`.
 
 For the aggregative tracking implementation:
 ```bash
