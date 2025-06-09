@@ -1,0 +1,55 @@
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+\section*{Motivations} 
+Recent advancements in embedded electronics have enabled the integration of computation and communication capabilities into a wide range of devices, spanning various domains such as factories, farms, buildings, energy grids, and cities. This interconnectedness among devices has paved the way for the transformation of individual smart devices into smart cooperating systems. This emerging paradigm, characterized by its interconnection and complexity, where significant advantages arise from exploiting such structure, is commonly referred to as cyber-physical networks.
+
+Within this context, a novel peer-to-peer distributed computational framework is gaining prominence. In such a framework, processors operate as peers, communicating over a network to collaboratively solve tasks, without relying on a single central authority that possesses all the data. \cite{DistributedOptimizationSmartCyberPhysicalNetworks}
+
+\paragraph{Distributed Optimization}
+Many challenges within cyber-physical networks such as estimation, decision-making, learning, and control can be cast as optimization problems. Solving these large-scale, structured problems using classical centralized algorithms is often impractical, as the problem data is distributed across the network, and collecting all data at a central node is either undesirable or infeasible.
+
+% While parallel computing has long explored the idea of distributing computational workloads across multiple processors to accelerate solutions, such methods typically assume the presence of a centralized coordinator and a bespoke communication topology. In contrast, in cyber-physical networks, the communication topology is usually fixed and must be treated as part of the problem formulation rather than a design variable.
+In a distributed setup, the objective is to the design of algorithms where agents, acting as peers without a central coordinator, cooperatively solve an optimization task.
+Often, these systems impose privacy constraints, requiring that local data not be shared with other agents. These challenges have led to the growth of a new area of research called distributed optimization.
+
+\section*{Communication model}
+In the distributed scenario we consider, the system is composed of $N \in \mathbb{N}$ agents (also referred to as robots or processors), each equipped with both computation and communication capabilities. The interactions among agents are modeled using graph theory.
+
+At each discrete time instant $t \in \mathbb{N}$, the communication network is described by a directed graph:
+\[
+\mathcal{G}_t = (\mathcal{I}, \mathcal{E}_t)
+\]
+where $\mathcal{I} = \{1, \dots, N\}$ denotes the set of agents, and $\mathcal{E}_t \subseteq \mathcal{I} \times \mathcal{I}$ represents the set of directed communication links at time $t$. A directed edge $(j, i) \in \mathcal{E}_t$ indicates that agent $j$ is able to send information to agent $i$ at time $t$.
+
+\vspace{0.5em}
+
+For each agent $i \in \mathcal{I}$, we define the set of in-neighbors at time $t$ as:
+\[
+\mathcal{N}_i^t := \{ j \in \mathcal{I} \mid (j, i) \in \mathcal{E}_t \}
+\]
+These are the agents from which $i$ can receive information at time $t$. Similarly, the set of out-neighbors is defined as:
+\[
+\mathcal{N}_i^{t \ OUT}  := \{ j \in \mathcal{I} \mid (i, j) \in \mathcal{E}_t \}
+\]
+corresponding to the agents to which $i$ can send information.
+
+\vspace{0.5em}
+
+The graph $\mathcal{G}_t$ is said to be fixed if the edge set remains constant over time, i.e., $\mathcal{E}_t \equiv \mathcal{E}$ for all $t$. Otherwise, the graph is said to be time-varying. If for every pair of nodes $i, j \in \mathcal{I}$, the existence of an edge $(i, j) \in \mathcal{E}_t$ implies that also $(j, i) \in \mathcal{E}_t$, the graph is undirected.
+
+The communication structure at each time $t$ can be associated with a weighted adjacency matrix $A_t \in \mathbb{R}^{N \times N}$, where the entry $a_{ij}^t > 0$ if $(j, i) \in \mathcal{E}_t$, and $a_{ij}^t = 0$ otherwise. This matrix captures how information is aggregated across the network. A matrix is column-stochastic if it has non-negative entries and each column sums to one. It is doubly-stochastic if, in addition, each row also sums to one. Doubly-stochastic matrices are useful in consensus algorithms as they ensure balanced and averaging behavior across the network.
+
+\vspace{0.5em}
+
+Graph connectivity plays a critical role in the design and analysis of distributed algorithms. A fixed directed graph is said to be strongly connected if there exists a directed path between every pair of agents, meaning that information can propagate from any node to any other by following the edge directions. In contrast, a graph is weakly connected (also referred to as simply connected) if there exists an undirected path between every pair of nodes i.e. the connectivity holds when edge directions are ignored. Notably, when the graph is undirected, the notions of strong and weak connectivity coincide.
+
+In the time-varying case, joint strong connectivity (or $T$-strong connectivity) ensures that the union of the communication graphs over a window of $T$ consecutive time steps remains strongly connected, allowing information to eventually propagate throughout the network.
+
+\vspace{0.5em}
+
+In the context of distributed algorithms, each agent starts from its own local state and performs an iterative procedure that alternates local computation with communication from its in-neighbors. Agents typically follow the same update rule and rely solely on locally accessible information. The underlying communication graph plays a crucial role in convergence properties. A graph is said to be periodic if there exists an integer $k > 1$ (called the period) that divides the length of every cycle in the graph. Conversely, a graph is aperiodic if no such $k$ exists. Notably, a graph with at least one self-loop is aperiodic, which in distributed settings corresponds to agents incorporating their own state during updates. 
+
+
+
+\section*{Structure of the report}
+To guide the reader, the structure of the report is organized as follows. In Chapter~\ref{ch:consensus}, we focus on the consensus optimization problem and present the implementation of the Gradient Tracking algorithm, with applications to cooperative multi-target localization. Then, in Chapter~\ref{ch:aggregative}, we address the aggregative optimization problem, detailing the design and implementation of a distributed control strategy based on Aggregative Tracking. Each section includes theoretical modeling, algorithmic implementation, and simulations results.

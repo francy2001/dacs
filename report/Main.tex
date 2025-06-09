@@ -1,0 +1,63 @@
+%
+% Distributed Automous System project
+%
+\documentclass[a4paper,11pt,oneside]{book}
+\usepackage[a4paper, left=3.5cm, right=3.5cm, top=3.5cm, bottom=3.5cm]{geometry}
+\usepackage[latin1]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb,amsmath,color}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{ulem}
+\usetikzlibrary{arrows.meta, positioning}
+
+\setlength\parindent{0pt}
+
+\begin{document}
+\pagestyle{myheadings}
+
+%-------------------------------------COVER
+\include{report/Cover}
+\newpage\null\thispagestyle{empty}
+
+%-------------------------------------ABSTRACT
+\include{report/Abstract}
+\newpage\null\thispagestyle{empty}
+
+\tableofcontents \thispagestyle{empty}
+% \listoffigures\thispagestyle{empty}
+
+%-------------------------------------INTRODUCTION
+\include{report/Introduction}
+\newpage\null\thispagestyle{empty}\newpage
+
+
+%%%%%%%%%% Chapter Title %%%%%%%%%%
+%------------------------------------- Chapter 1
+\include{report/Task1}
+\newpage\null\thispagestyle{empty}
+
+%------------------------------------- Chapter 2
+\include{report/Task2}
+\newpage\null\thispagestyle{empty}
+
+
+%%%%%%%%%% Conclusions %%%%%%%%%%
+\include{report/Conclusions}
+\newpage\null\thispagestyle{empty}
+
+
+%%%%%%%%%% Bibliography %%%%%%%%%%%
+\bibliography{bibfile}{}
+\bibliographystyle{unsrt} %  "unsorted," meaning that the references will appear in the order they are cited in the text, rather than being sorted alphabetically by the authors' names.
+\addcontentsline{toc}{chapter}{Bibliography}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

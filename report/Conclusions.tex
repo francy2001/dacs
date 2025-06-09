@@ -1,0 +1,22 @@
+\chapter*{Conclusions}
+\addcontentsline{toc}{chapter}{Conclusions} 
+
+In this project, we explored distributed optimization algorithms as a flexible and powerful framework for the coordination of multi-agent systems. Through the implementation and testing of both consensus-based and aggregative optimization strategies, we demonstrated that global objectives can be effectively achieved through fully decentralized computations and neighbor-to-neighbor communication.
+
+\bigskip
+
+The results obtained across all scenarios were highly satisfactory. In the context of cooperative localization (Chapter \ref{ch:consensus}), the Gradient Tracking algorithm proved to be robust and efficient, achieving accurate convergence even under noisy measurement conditions. In Task~2 (Chapter \ref{ch:aggregative}), we extended the analysis to aggregative optimization, where each agent balances its own objective with a global aggregative term. The proposed algorithm showed reliable convergence and good scalability, confirming its theoretical guarantees in both centralized and distributed configurations. \\
+Moreover, we validated the approach in several specific scenarios, including the presence of VIP agents, increased cohesion among agents, and stronger individual target tracking. These experiments revealed how the proposed framework can flexibly adapt to heterogeneous behaviors and priorities among agents, while still maintaining stable and coordinated evolution.
+
+\bigskip
+
+To let the agents work in a more realistic scenario, it was integrated a low-level safety controller based on Control Barrier Functions. This mechanism ensures inter-agent collision avoidance in real time, while preserving the coordination induced by the high-level distributed algorithm. Although simple, this solution demonstrated good performance in simulation and provided a valuable safety layer.
+
+\bigskip
+While the results are promising, several directions for improvement remain. First, the current method for detecting physical neighbors is only semi-distributed. A fully distributed implementation would require each agent to autonomously sense nearby peers using local sensors, such as LiDAR or cameras. Additionally, the communication model assumes synchronous and reliable message exchange. Introducing asynchronous updates and handling communication delays or packet loss would enhance the algorithm's applicability in real-world networks. \\
+Finally, while the safety controller worked well in moderately crowded environments, its scalability to highly dynamic or dense scenarios remains limited. Future work could include the integration of predictive or learning-based safety mechanisms, allowing for more adaptive and reactive behaviors while preserving formal guarantees on collision avoidance.
+
+
+
+
+

@@ -1,0 +1,14 @@
+\thispagestyle{empty}
+
+%%%%%%%%%%% Abstract %%%%%%%%%%%%
+\chapter*{Abstract}
+In recent years, distributed optimization has emerged as a powerful framework to coordinate large-scale systems of autonomous agents without relying on centralized control. This report explores how such techniques can be applied to multi-robot systems, focusing on both consensus and aggregative optimization problems. Our investigation begins with the implementation of a Distributed Gradient Tracking algorithm, which allows a team of robots to cooperatively estimate shared variables by relying only on local information and neighbor-to-neighbor communication. Through simulations, we observe accurate convergence to the global optimum, even in the presence of noisy measurements, demonstrating the effectiveness of distributed estimation strategies. 
+
+\bigskip
+
+We then shift our attention to a more complex form of coordination, where each robot aims to balance its own objectives with the collective behavior of the team. This leads us to consider Aggregative Optimization problems, in which each local cost depends not only on the robot's individual decision but also on an aggregate quantity, such as the average position of all agents. To address this in a decentralized setting, we design a distributed algorithm based on a two-time-scale structure: while the decision variables evolve slowly through gradient steps, each agent concurrently tracks the aggregate quantities and their gradients via fast dynamic consensus schemes. This tracking mechanism enables each agent to locally approximate global information that would otherwise be inaccessible, effectively bridging the gap between centralized and distributed implementations. The proposed method proves robust and scalable, maintaining performance across different communication topologies and behavioral scenarios.
+
+\bigskip
+
+To ensure safe navigation, we integrate a low-level safety controller based on control barrier functions, which modifies the agents' actions in real time to prevent collisions. Finally, the aggregative tracking framework is also deployed using the ROS2 middleware, enabling a fully distributed architecture that mirrors the theoretical assumptions of the algorithms. The resulting system is capable of achieving cooperative behavior in real-time, while preserving both privacy and safety. This work highlights how distributed optimization, enriched with safety and implementation considerations, can serve as a foundation for intelligent, autonomous multi-robot systems.
+
