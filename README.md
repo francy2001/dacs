@@ -1,4 +1,4 @@
-# Distributed Autonomous Cooperative Systems (DACS)
+# Distributed Autonomous Cooperative Systems (DACS) :duck:
 
 This repository contains the final submission for the Distributed Autonomous Systems (DAS) project, developed during the 2024/2025 academic year at the University of Bologna.
 
