@@ -36,7 +36,7 @@ Both algorithms are validated in simulation, and the aggregative scenario is als
 - Agents estimate a shared target location based on noisy local measurements.
 - Convergence to the global optimum is validated across different network topologies.
 
-### :large_orange_diamond: Task 2: Distributed Aggregative Optimization
+### :small_orange_diamond: Task 2: Distributed Aggregative Optimization
 - Agents minimize local cost functions dependent on their own state and a team barycenter.
 - Includes a **ROS2-based implementation** using publish/subscribe communication.
 - A **Control Barrier Function (CBF)**-based safety layer ensures real-time collision avoidance.
