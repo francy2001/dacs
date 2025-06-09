@@ -74,7 +74,7 @@ class Agent(Node):
         self.my_subscriptions = []
         self.received_data = {j : [] for j in self.neighbours} # create FIFO buffers
         
-        # TODO: NOTE: it's a bit strange to subscribe to own topic but it's more "uniform"
+        # NOTE: it's a bit strange to subscribe to own topic but it's more "uniform"
         # all the values and all the weights... including myself!
         for j in self.neighbours:
             self.my_subscriptions.append(
@@ -147,11 +147,6 @@ class Agent(Node):
         nabla2_k_plus_1 = self.gradient_computation(zz_i_k_plus_1, ss_i_k_plus_1, type='second')
         vv_local_innovation = nabla2_k_plus_1 - nabla2_k
         vv_i_k_plus_1 = vv_consensus + vv_local_innovation
-
-        # TODO: how to do we compute the total gradient?
-        # total_cost[k] += cost
-        # total_grad[k] += grad
-        
         
         return cost, grad, zz_i_k_plus_1, ss_i_k_plus_1, vv_i_k_plus_1
 

@@ -17,7 +17,11 @@ max_iter = 500
 
 # [ generate initial positions for the agents and respective targets ]
 # zz_init = np.random.uniform(low=-5, high=5, size=(N, d))
-zz_init = np.array([[-3.8948402, -0.43498884], [-3.0458004, -3.58041166], [-4.58713019, 4.16238757], [3.15540315, -0.8213395], [3.48339547, -0.57460651]])
+zz_init = np.array([[-3.8948402, -0.43498884],
+                    [-3.0458004, -3.58041166], 
+                    [-4.58713019, 4.16238757], 
+                    [3.15540315, -0.8213395], 
+                    [3.48339547, -0.57460651]])
 # target_pos = np.random.uniform(low=-5, high=5, size=(N, d))
 target_pos = np.array([[-4.36412178,  3.14153796],
                        [-2.92742308,  4.48450976],
