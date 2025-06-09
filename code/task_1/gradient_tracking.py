@@ -12,7 +12,7 @@ seed = 38
 np.random.seed(seed)
 
 max_iter = 1000
-run_simulations = False
+run_simulations = True
 
 def quadratic_cost_fn(zz, QQ, rr):
     """

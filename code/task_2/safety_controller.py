@@ -41,8 +41,8 @@ def neighborhood_distances(zz, agent_index, radius=3*delta):
     neighbors = np.delete(zz, agent_index, axis=0)  # Exclude the agent itself
     distances = []  # Initialize distances array
      
-    print(f"Neighborhood of the agent {agent_index}")
-    print(f"Positions of the neighbors: {neighbors}, shape: {neighbors.shape}")
+    # print(f"Neighborhood of the agent {agent_index}")
+    # print(f"Positions of the neighbors: {neighbors}, shape: {neighbors.shape}")
     
     for j in range(neighbors.shape[0]):
         distance = (zz[agent_index] - neighbors[j])
@@ -69,27 +69,27 @@ def safety_controller(u_ref, neighbors_dist):
     
     # No neighbors, return the reference control input
     if neighbors_dist.shape[0] == 0:
-        print("No neighbors found, returning the reference control input.")
+        # print("No neighbors found, returning the reference control input.")
         return u_ref
 
     # Creation of the matrix A and b
     A = np.zeros((neighbors_dist.shape[0], u_ref.shape[0]))
     b = np.zeros(neighbors_dist.shape[0])
 
-    print(f"A shape: {A.shape}")
-    print(f"b shape: {b.shape}")
+    # print(f"A shape: {A.shape}")
+    # print(f"b shape: {b.shape}")
     # print(f"zz[i]: {zz[agent_index]}")
 
     for j in range(neighbors_dist.shape[0]):
         diff = neighbors_dist[j]  # Difference between the agent's position and the neighbor's position
         A[j] = -2 * diff.T
         b[j] = 0.5 * gamma *(np.linalg.norm(diff)**2 - delta**2)
-    print(f"A: {A}, b: {b}")       
+    # print(f"A: {A}, b: {b}")       
 
     # Check if the constraints are satisfied, if so, we don't need to solve the QP problem, we can just return u_ref
-    print(f"Checking constraints for u_ref: {u_ref}")
+    # print(f"Checking constraints for u_ref: {u_ref}")
     if np.all(A @ u_ref <= b):
-        print(f"Constraints already satisfied for u_ref: {u_ref}")
+        # print(f"Constraints already satisfied for u_ref: {u_ref}")
         return u_ref
 
     # Solve the QP problem
@@ -97,7 +97,7 @@ def safety_controller(u_ref, neighbors_dist):
     qq = - u_ref                # Linear term
 
     minimum, cost = min_cvx_solver(QQ, qq, A, b)
-    print(f"Minimum: {minimum}, Cost: {cost}")
+    # print(f"Minimum: {minimum}, Cost: {cost}")
     
     return minimum
 
@@ -127,7 +127,7 @@ def min_cvx_solver(QQ, qq, AA, bb):
         try:
             problem.solve(solver=solver)
             if problem.status in ['optimal', 'optimal_inaccurate']:
-                print(f"Solver {solver} succeeded.")
+                # print(f"Solver {solver} succeeded.")
                 return zz.value, problem.value
         except Exception as e:
             continue
