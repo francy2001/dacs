@@ -235,6 +235,9 @@ def aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1
                 neighbors_distances = neighborhood_distances(xx[k], i)  # Get distances of neighbors    
                 u_safe = safety_controller(u_ref, neighbors_distances)  # Apply the safety controller to the reference control input
 
+                if u_safe is None:
+                    u_safe = 0
+
                 #  [ xx and zz update ]
                 xx[k+1, i] = xx[k, i] + delta_t * u_safe  # Update the position with the safe control input
                 zz[k+1, i] = xx[k+1, i]
