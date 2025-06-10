@@ -222,16 +222,22 @@ def aggregative_tracking(alpha, z_init, target_pos, dim, cost_functions, gamma_1
             if safety:      # Safety controller
 
                 delta_t=0.1
+                Kp = 1
+                
+                # Output of aggregative tracking algorithm
                 z_temp = zz[k, i] - alpha * grad
-                u_ref = z_temp
+                
+                # P control to adapt the control input for the single integrator model present in the actuators
+                error = z_temp - xx[k,i]
+                u_ref = Kp * error
+
+                # Safety controller
                 neighbors_distances = neighborhood_distances(xx[k], i)  # Get distances of neighbors    
                 u_safe = safety_controller(u_ref, neighbors_distances)  # Apply the safety controller to the reference control input
-                
-                if u_safe is None:
-                    zz[k+1, i] = xx[k, i]  # If the safe control input is None, stop in the current position
-                else:
-                    xx[k+1, i] = xx[k, i] + delta_t * (u_safe - xx[k,i])  # Update the position with the safe control input
-                    zz[k+1, i] = xx[k+1, i]
+
+                #  [ xx and zz update ]
+                xx[k+1, i] = xx[k, i] + delta_t * u_safe  # Update the position with the safe control input
+                zz[k+1, i] = xx[k+1, i]
 
             else:
                 zz[k+1, i] = zz[k, i] - alpha * grad

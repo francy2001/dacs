@@ -136,7 +136,7 @@ def min_cvx_solver(QQ, qq, AA, bb):
 
 if __name__ == "__main__":
     # setup 
-    N = 4  # number of agents
+    N = 8  # number of agents
     d = 2  # dimension of the state space
 
     # generate N target positions
